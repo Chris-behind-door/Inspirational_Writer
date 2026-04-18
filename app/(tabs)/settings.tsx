@@ -26,6 +26,16 @@ export default function SettingsScreen() {
           <Text style={styles.navLabel}>API 配置</Text>
           <Text style={styles.navArrow}>›</Text>
         </TouchableOpacity>
+        <View style={styles.separator} />
+        <TouchableOpacity style={styles.navItem} onPress={() => router.push('/model-settings' as any)}>
+          <Text style={styles.navLabel}>模型参数</Text>
+          <Text style={styles.navArrow}>›</Text>
+        </TouchableOpacity>
+        <View style={styles.separator} />
+        <TouchableOpacity style={styles.navItem} onPress={() => router.push('/preferences' as any)}>
+          <Text style={styles.navLabel}>偏好设置</Text>
+          <Text style={styles.navArrow}>›</Text>
+        </TouchableOpacity>
       </View>
 
       {/* 调试分组 */}
@@ -75,5 +85,10 @@ const styles = StyleSheet.create({
     fontSize: 20,
     color: '#C7C7CC',
     fontWeight: '600',
+  },
+  separator: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: '#C6C6C8',
+    marginLeft: 16,
   },
 });

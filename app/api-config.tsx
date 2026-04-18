@@ -28,12 +28,26 @@ export default function ApiConfigScreen() {
 
   // 启动时从 AsyncStorage 恢复
   useEffect(() => {
-    loadPresets().then(() => setPresets([...getPresets()]));
+    loadPresets().then(() => {
+      const all = getPresets();
+      setPresets([...all]);
+      // 自动选中当前应用的预设
+      const activeId = getActivePresetId();
+      const activePreset = all.find(p => p.id === activeId);
+      if (activePreset) {
+        setSelectedPresetId(activePreset.id);
+        setBaseUrl(activePreset.baseUrl);
+        setApiKey(activePreset.apiKey);
+        setModel(activePreset.modelName);
+        setOriginalValues({ baseUrl: activePreset.baseUrl, apiKey: activePreset.apiKey, model: activePreset.modelName });
+      }
+    });
   }, []);
   const [selectedPresetId, setSelectedPresetId] = useState<string>(NEW_PRESET_ID);
   // 记录原始值用于比较
   const [originalValues, setOriginalValues] = useState<{ baseUrl: string; apiKey: string; model: string } | null>(null);
 
+  // 模型参数
   // 表单字段
   const [baseUrl, setBaseUrl] = useState('');
   const [apiKey, setApiKey] = useState('');
