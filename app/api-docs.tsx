@@ -113,7 +113,7 @@ function PaidSection() {
       <View style={styles.divider} />
 
       <Text style={styles.subHeading}>DeepSeek</Text>
-      <P>deepseek-chat (V3.2) / deepseek-reasoner，输入 ￥2/百万 token，输出 ￥3/百万 token，128K 上下文。</P>
+      <P>deepseek-v4-flash（输入 ￥1/百万，输出 ￥2/百万，1M 上下文） / deepseek-v4-pro（输入 ￥12/百万，输出 ￥24/百万，1M 上下文，384K 输出）。缓存命中低至 ￥0.02/百万。V3.2 已下线。</P>
       <View style={styles.stepBox}>
         <Text style={styles.step}>注册 platform.deepseek.com → 充值 → 创建 Key</Text>
         <Text style={styles.step}>Base URL: https://api.deepseek.com/v1</Text>
@@ -173,7 +173,7 @@ function StepsCard() {
         <Text style={styles.step}>2. 点击「API 配置」</Text>
         <Text style={styles.step}>3. 填写 Base URL（参考上方各平台提供的地址）</Text>
         <Text style={styles.step}>4. 填写 API Key（从平台控制台获取）</Text>
-        <Text style={styles.step}>5. 填写模型名称（如 glm-4.7-flash、deepseek-chat 等）</Text>
+        <Text style={styles.step}>5. 填写模型名称（如 glm-4.7-flash、deepseek-v4-flash 等）</Text>
         <Text style={styles.step}>6. 保存后发一条消息测试</Text>
       </View>
     </Card>
