@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
-import MarkdownRenderer from '../../components/MarkdownRenderer';
+import DebugMarkdown from '../../components/DebugMarkdown';
 
 const INSPIRATION_STORAGE_KEY = '@inhunt/inspirations';
 
@@ -99,7 +99,7 @@ export default function CollectionScreen() {
                 {rawIds.has(item.id) ? (
                   <Text style={styles.rawText} selectable>{item.result}</Text>
                 ) : (
-                  <MarkdownRenderer>{item.result}</MarkdownRenderer>
+                  <DebugMarkdown>{item.result}</DebugMarkdown>
                 )}
                 <View style={styles.cardFooter}>
                   <Text style={styles.dateText}>
