@@ -84,7 +84,7 @@ export default function CollectionScreen() {
 
             {isExpanded && (
               <View style={styles.cardBody}>
-                <Text style={styles.resultText}>{item.result}</Text>
+                <Text style={styles.resultText} selectable>{item.result}</Text>
                 <View style={styles.cardFooter}>
                   <Text style={styles.dateText}>
                     {new Date(item.createdAt).toLocaleString('zh-CN')}

@@ -268,7 +268,7 @@ export default function InspireScreen() {
           <>
             <Text style={styles.sectionTitle}>生成结果</Text>
             <View style={styles.resultCard}>
-              <Text style={styles.resultText}>{result}</Text>
+              <Text style={styles.resultText} selectable>{result}</Text>
             </View>
           </>
         )}
