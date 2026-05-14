@@ -39,9 +39,9 @@ const s = StyleSheet.create({
   codeBlockText: { fontSize: 14, fontFamily: 'monospace', color: '#333', lineHeight: 22 },
   hr: { backgroundColor: '#E0E0E0', height: 1, marginVertical: 12 },
   list: { marginVertical: 4 },
-  listItem: { flexDirection: 'row', marginVertical: 2, paddingLeft: 4 },
+  listItem: { flexDirection: 'row', marginVertical: 2, paddingLeft: 4, overflow: 'visible' as const },
   listBullet: { fontSize: 16, color: '#000', width: 20, lineHeight: 26 },
-  listText: { flex: 1 },
+  listText: { flex: 1, overflow: 'visible' as const },
 });
 
 /* ------------------------------------------------------------------ */

@@ -10,7 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import MarkdownRenderer from '../../components/MarkdownRenderer';
+import DebugMarkdown from '../../components/DebugMarkdown';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   getActivePreset,
@@ -278,7 +278,7 @@ export default function InspireScreen() {
               {showRaw ? (
                 <Text style={styles.rawText} selectable>{result}</Text>
               ) : (
-                <MarkdownRenderer>{result}</MarkdownRenderer>
+                <DebugMarkdown>{result}</DebugMarkdown>
               )}
             </View>
           </>
