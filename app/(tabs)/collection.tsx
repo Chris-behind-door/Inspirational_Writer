@@ -6,9 +6,11 @@ import {
   StyleSheet,
   TouchableOpacity,
   Alert,
+  useWindowDimensions,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
+import Markdown from 'react-native-markdown-display';
 
 const INSPIRATION_STORAGE_KEY = '@inhunt/inspirations';
 
@@ -21,10 +23,10 @@ interface InspirationItem {
 }
 
 export default function CollectionScreen() {
+  const { width } = useWindowDimensions();
   const [items, setItems] = useState<InspirationItem[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  // 每次页面获得焦点时重新加载
   useFocusEffect(
     useCallback(() => {
       AsyncStorage.getItem(INSPIRATION_STORAGE_KEY).then(raw => {
@@ -84,7 +86,7 @@ export default function CollectionScreen() {
 
             {isExpanded && (
               <View style={styles.cardBody}>
-                <Text style={styles.resultText} selectable>{item.result}</Text>
+                <Markdown style={markdownStyles(width)}>{item.result}</Markdown>
                 <View style={styles.cardFooter}>
                   <Text style={styles.dateText}>
                     {new Date(item.createdAt).toLocaleString('zh-CN')}
@@ -184,11 +186,6 @@ const styles = StyleSheet.create({
     borderTopColor: '#E5E5EA',
     paddingTop: 12,
   },
-  resultText: {
-    fontSize: 16,
-    color: '#000',
-    lineHeight: 26,
-  },
   cardFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -204,3 +201,41 @@ const styles = StyleSheet.create({
     color: '#FF3B30',
   },
 });
+
+function markdownStyles(containerWidth: number) {
+  return {
+    body: { color: '#000', fontSize: 16, lineHeight: 26 },
+    heading1: { fontSize: 22, fontWeight: '700' as const, color: '#000', marginVertical: 8 },
+    heading2: { fontSize: 20, fontWeight: '700' as const, color: '#000', marginVertical: 6 },
+    heading3: { fontSize: 18, fontWeight: '600' as const, color: '#000', marginVertical: 6 },
+    heading4: { fontSize: 16, fontWeight: '600' as const, color: '#333', marginVertical: 4 },
+    strong: { fontWeight: '700' as const },
+    em: { fontStyle: 'italic' as const },
+    blockquote: {
+      backgroundColor: '#F0F6FF',
+      borderLeftWidth: 4,
+      borderLeftColor: '#007AFF',
+      paddingHorizontal: 12,
+      paddingVertical: 4,
+      marginVertical: 8,
+    },
+    code_inline: {
+      backgroundColor: '#F2F2F7',
+      color: '#FF3B30',
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 4,
+      fontSize: 14,
+    },
+    fence: {
+      backgroundColor: '#F2F2F7',
+      padding: 12,
+      borderRadius: 8,
+      marginVertical: 8,
+    },
+    hr: { backgroundColor: '#E0E0E0', height: 1, marginVertical: 12 },
+    bullet_list: { marginVertical: 4 },
+    ordered_list: { marginVertical: 4 },
+    list_item: { marginVertical: 2 },
+  };
+}

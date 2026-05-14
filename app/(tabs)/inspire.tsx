@@ -9,7 +9,9 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  useWindowDimensions,
 } from 'react-native';
+import Markdown from 'react-native-markdown-display';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   getActivePreset,
@@ -60,6 +62,7 @@ const PRESETS: { key: PresetType; label: string; icon: string; systemPrompt: str
 ];
 
 export default function InspireScreen() {
+  const { width } = useWindowDimensions();
   const [ready, setReady] = useState(false);
   const [hasConfig, setHasConfig] = useState(false);
   const [selectedType, setSelectedType] = useState<PresetType | null>(null);
@@ -268,7 +271,7 @@ export default function InspireScreen() {
           <>
             <Text style={styles.sectionTitle}>生成结果</Text>
             <View style={styles.resultCard}>
-              <Text style={styles.resultText} selectable>{result}</Text>
+              <Markdown style={markdownStyles(width)}>{result}</Markdown>
             </View>
           </>
         )}
@@ -393,3 +396,41 @@ const styles = StyleSheet.create({
     lineHeight: 26,
   },
 });
+
+function markdownStyles(containerWidth: number) {
+  return {
+    body: { color: '#000', fontSize: 16, lineHeight: 26 },
+    heading1: { fontSize: 22, fontWeight: '700' as const, color: '#000', marginVertical: 8 },
+    heading2: { fontSize: 20, fontWeight: '700' as const, color: '#000', marginVertical: 6 },
+    heading3: { fontSize: 18, fontWeight: '600' as const, color: '#000', marginVertical: 6 },
+    heading4: { fontSize: 16, fontWeight: '600' as const, color: '#333', marginVertical: 4 },
+    strong: { fontWeight: '700' as const },
+    em: { fontStyle: 'italic' as const },
+    blockquote: {
+      backgroundColor: '#F0F6FF',
+      borderLeftWidth: 4,
+      borderLeftColor: '#007AFF',
+      paddingHorizontal: 12,
+      paddingVertical: 4,
+      marginVertical: 8,
+    },
+    code_inline: {
+      backgroundColor: '#F2F2F7',
+      color: '#FF3B30',
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 4,
+      fontSize: 14,
+    },
+    fence: {
+      backgroundColor: '#F2F2F7',
+      padding: 12,
+      borderRadius: 8,
+      marginVertical: 8,
+    },
+    hr: { backgroundColor: '#E0E0E0', height: 1, marginVertical: 12 },
+    bullet_list: { marginVertical: 4 },
+    ordered_list: { marginVertical: 4 },
+    list_item: { marginVertical: 2 },
+  };
+}
