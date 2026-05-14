@@ -195,9 +195,12 @@ export default function MarkdownRenderer({ children }: Props) {
 
   let ast: any[];
   try {
-    // Fix simple-markdown bug: headings not recognized when directly
-    // followed by a list (no blank line between them)
-    const fixed = children.replace(/^(#{1,6}\s+.+)\n([*\-+]|\d+\.)\s/gm, '$1\n\n$2 ');
+    // Fix simple-markdown bugs:
+    // 1. Headings require a blank line before the next block (list, blockquote, etc.)
+    // 2. Emoji after ### can break heading detection
+    let fixed = children.replace(/^(#{1,6})\s*(.+)$/gm, (_, h, t) => `${h} ${t.trim()}`);
+    // Insert blank line after any heading not already followed by a blank line
+    fixed = fixed.replace(/^(#{1,6}\s+.+)\n(?!\s*$)/gm, '$1\n\n');
     ast = defaultBlockParse(fixed);
   } catch {
     return <Text style={s.body}>{children}</Text>;
