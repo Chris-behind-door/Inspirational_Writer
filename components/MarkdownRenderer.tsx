@@ -57,7 +57,7 @@ function renderInlines(nodes: any[]): React.ReactNode[] {
     const key = `inl${i}`;
 
     switch (node.type) {
-      case 'text':       return <Text key={key}>{content}</Text>;
+      case 'text':       return <Text key={key}>{typeof content === 'string' ? content.replace(/\n+$/, '') : content}</Text>;
       case 'strong':     return <Text key={key} style={s.strong}>{renderInlines(Array.isArray(content) ? content : [content])}</Text>;
       case 'em':         return <Text key={key} style={s.em}>{renderInlines(Array.isArray(content) ? content : [content])}</Text>;
       case 'del':        return <Text key={key} style={s.del}>{renderInlines(Array.isArray(content) ? content : [content])}</Text>;
