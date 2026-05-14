@@ -42,24 +42,6 @@ const s = StyleSheet.create({
   listItem: { flexDirection: 'row', marginVertical: 2, paddingLeft: 4, overflow: 'visible' as const },
   listBullet: { fontSize: 16, color: '#000', width: 20, lineHeight: 26 },
   listText: { flex: 1, overflow: 'visible' as const },
-  listDebug: {
-    backgroundColor: 'rgba(255,59,48,0.06)',
-    borderLeftWidth: 3,
-    borderLeftColor: '#FF3B30',
-    paddingLeft: 8,
-    borderRadius: 4,
-  },
-  listDebugLabel: {
-    fontSize: 11,
-    color: '#FF3B30',
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  listItemDebug: {
-    backgroundColor: 'rgba(255,59,48,0.03)',
-    borderRadius: 4,
-    padding: 2,
-  },
 });
 
 /* ------------------------------------------------------------------ */
@@ -113,8 +95,9 @@ function renderMixedContent(children: any[], keyPrefix: string): React.ReactNode
     if (!child || typeof child === 'string') {
       inlineBuffer.push(child);
     } else if (child.type === 'paragraph') {
+      // paragraph content can mix inline + block nodes (e.g. nested lists)
       flush();
-      out.push(<TextBlock key={`${keyPrefix}-p-${out.length}`} content={child.content} />);
+      out.push(...renderMixedContent(child.content, `${keyPrefix}-p-`));
     } else if (INLINE_TYPES.has(child.type)) {
       inlineBuffer.push(child);
     } else if (child.type === 'list') {
@@ -177,14 +160,10 @@ function renderBlocks(nodes: any[], keyPrefix = ''): React.ReactNode[] {
       case 'list': {
         const ordered = node.ordered || false;
         const items: any[][] = node.items || [];
-        const nested = keyPrefix.includes('sublist');
         return (
-          <View key={key} style={[s.list, nested && s.listDebug]}>
-            {nested && (
-              <Text style={s.listDebugLabel}>▼ 嵌套列表 ({items.length}项)</Text>
-            )}
+          <View key={key} style={s.list}>
             {items.map((item, idx) => (
-              <View key={`${key}-li-${idx}`} style={[s.listItem, nested && s.listItemDebug]}>
+              <View key={`${key}-li-${idx}`} style={s.listItem}>
                 <Text style={s.listBullet}>
                   {ordered ? `${(node.start || 1) + idx}.` : '•'}
                 </Text>
