@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
-import Markdown from 'react-native-markdown-package';
+import MarkdownRenderer from '../../components/MarkdownRenderer';
 
 const INSPIRATION_STORAGE_KEY = '@inhunt/inspirations';
 
@@ -99,7 +99,7 @@ export default function CollectionScreen() {
                 {rawIds.has(item.id) ? (
                   <Text style={styles.rawText} selectable>{item.result}</Text>
                 ) : (
-                  <Markdown styles={markdownStyles}>{item.result}</Markdown>
+                  <MarkdownRenderer>{item.result}</MarkdownRenderer>
                 )}
                 <View style={styles.cardFooter}>
                   <Text style={styles.dateText}>
@@ -231,22 +231,3 @@ const styles = StyleSheet.create({
   },
 });
 
-const markdownStyles = {
-  text: { color: '#000', fontSize: 16, lineHeight: 26 },
-  heading1: { fontSize: 22, fontWeight: '700', color: '#000' },
-  heading2: { fontSize: 20, fontWeight: '700', color: '#000' },
-  heading3: { fontSize: 18, fontWeight: '600', color: '#000' },
-  heading4: { fontSize: 16, fontWeight: '600', color: '#333' },
-  heading: { fontWeight: '600' },
-  strong: { fontWeight: '700' },
-  em: { fontStyle: 'italic' },
-  paragraph: { marginTop: 6, marginBottom: 6 },
-  blockQuoteSection: { marginVertical: 8 },
-  blockQuoteSectionBar: { width: 4, backgroundColor: '#007AFF', marginRight: 12 },
-  blockQuoteText: { color: '#333' },
-  inlineCode: { backgroundColor: '#F2F2F7', color: '#FF3B30', borderRadius: 4 },
-  codeBlock: { backgroundColor: '#F2F2F7', borderRadius: 8 },
-  hr: { backgroundColor: '#E0E0E0', height: 1, marginVertical: 12 },
-  list: { marginVertical: 4 },
-  listItem: { marginVertical: 2 },
-};
