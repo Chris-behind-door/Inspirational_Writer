@@ -32,7 +32,7 @@ export default function DebugMarkdown({ children }: Props) {
       {showAst ? (
         <View style={styles.astWrap}>
           <ScrollView horizontal style={styles.astHScroll}>
-            <Text style={styles.astText}>{JSON.stringify(ast, null, 2)}</Text>
+            <Text style={styles.astText} selectable>{JSON.stringify(ast, null, 2)}</Text>
           </ScrollView>
         </View>
       ) : (
