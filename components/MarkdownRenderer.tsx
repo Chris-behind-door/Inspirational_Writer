@@ -77,6 +77,41 @@ function TextBlock({ content: content, style }: { content: any; style?: any }) {
   return <Text style={[s.body, style]}>{renderInlines(nodes)}</Text>;
 }
 
+const INLINE_TYPES = new Set(['text', 'strong', 'em', 'del', 'link', 'inlineCode']);
+
+/** Group consecutive inline nodes into a single TextBlock;
+ *  block-level children (list, codeBlock, etc.) render separately. */
+function renderMixedContent(children: any[], keyPrefix: string): React.ReactNode[] {
+  const out: React.ReactNode[] = [];
+  let inlineBuffer: any[] = [];
+
+  const flush = () => {
+    if (inlineBuffer.length === 0) return;
+    out.push(<TextBlock key={`${keyPrefix}-ib-${out.length}`} content={inlineBuffer} />);
+    inlineBuffer = [];
+  };
+
+  for (const child of children) {
+    if (!child || typeof child === 'string') {
+      inlineBuffer.push(child);
+    } else if (child.type === 'paragraph') {
+      flush();
+      out.push(<TextBlock key={`${keyPrefix}-p-${out.length}`} content={child.content} />);
+    } else if (INLINE_TYPES.has(child.type)) {
+      inlineBuffer.push(child);
+    } else if (child.type === 'list') {
+      flush();
+      out.push(...renderBlocks([child], `${keyPrefix}-sublist-`));
+    } else {
+      // Other block types
+      flush();
+      out.push(...renderBlocks([child], `${keyPrefix}-block-`));
+    }
+  }
+  flush();
+  return out;
+}
+
 /* ------------------------------------------------------------------ */
 /*  BLOCK rendering                                                    */
 /* ------------------------------------------------------------------ */
@@ -132,16 +167,7 @@ function renderBlocks(nodes: any[], keyPrefix = ''): React.ReactNode[] {
                   {ordered ? `${(node.start || 1) + idx}.` : '•'}
                 </Text>
                 <View style={s.listText}>
-                  {item.map((child: any, j: number) => {
-                    if (child?.type === 'paragraph') {
-                      return <TextBlock key={`${key}-li-${idx}-${j}`} content={child.content} />;
-                    }
-                    if (child?.type === 'list') {
-                      // Nested sub-list
-                      return renderBlocks([child], `${key}-li-${idx}-sublist-`);
-                    }
-                    return <TextBlock key={`${key}-li-${idx}-${j}`} content={child} />;
-                  })}
+                  {renderMixedContent(item, `${key}-li-${idx}`)}
                 </View>
               </View>
             ))}
