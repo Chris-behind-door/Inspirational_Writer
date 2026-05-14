@@ -30,9 +30,11 @@ export default function DebugMarkdown({ children }: Props) {
         </Text>
       </TouchableOpacity>
       {showAst ? (
-        <ScrollView horizontal style={styles.astScroll}>
-          <Text style={styles.astText}>{JSON.stringify(ast, null, 2)}</Text>
-        </ScrollView>
+        <View style={styles.astWrap}>
+          <ScrollView horizontal style={styles.astHScroll}>
+            <Text style={styles.astText}>{JSON.stringify(ast, null, 2)}</Text>
+          </ScrollView>
+        </View>
       ) : (
         <MarkdownRenderer>{children}</MarkdownRenderer>
       )}
@@ -51,11 +53,14 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#007AFF',
   },
-  astScroll: {
-    maxHeight: 300,
+  astWrap: {
     backgroundColor: '#F5F5F5',
-    padding: 8,
     borderRadius: 8,
+    padding: 8,
+    minHeight: 400,
+  },
+  astHScroll: {
+    flex: 1,
   },
   astText: {
     fontSize: 10,
