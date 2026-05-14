@@ -24,6 +24,7 @@ interface InspirationItem {
 export default function CollectionScreen() {
   const [items, setItems] = useState<InspirationItem[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [rawIds, setRawIds] = useState<Set<string>>(new Set());
 
   useFocusEffect(
     useCallback(() => {
@@ -84,7 +85,22 @@ export default function CollectionScreen() {
 
             {isExpanded && (
               <View style={styles.cardBody}>
-                <Markdown styles={markdownStyles}>{item.result}</Markdown>
+                <View style={styles.resultToolbar}>
+                  <TouchableOpacity onPress={() => {
+                    setRawIds(prev => {
+                      const next = new Set(prev);
+                      if (next.has(item.id)) next.delete(item.id); else next.add(item.id);
+                      return next;
+                    });
+                  }}>
+                    <Text style={styles.toggleRaw}>{rawIds.has(item.id) ? '🎨 渲染' : '📋 原文'}</Text>
+                  </TouchableOpacity>
+                </View>
+                {rawIds.has(item.id) ? (
+                  <Text style={styles.rawText} selectable>{item.result}</Text>
+                ) : (
+                  <Markdown styles={markdownStyles}>{item.result}</Markdown>
+                )}
                 <View style={styles.cardFooter}>
                   <Text style={styles.dateText}>
                     {new Date(item.createdAt).toLocaleString('zh-CN')}
@@ -183,6 +199,21 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: '#E5E5EA',
     paddingTop: 12,
+  },
+  resultToolbar: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginBottom: 8,
+  },
+  toggleRaw: {
+    fontSize: 13,
+    color: '#007AFF',
+    fontWeight: '600',
+  },
+  rawText: {
+    fontSize: 16,
+    color: '#000',
+    lineHeight: 26,
   },
   cardFooter: {
     flexDirection: 'row',

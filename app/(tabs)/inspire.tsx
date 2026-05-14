@@ -68,6 +68,7 @@ export default function InspireScreen() {
   const [generating, setGenerating] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showRaw, setShowRaw] = useState(false);
 
   // 加载配置
   useEffect(() => {
@@ -267,9 +268,18 @@ export default function InspireScreen() {
         {/* 生成结果 */}
         {result && (
           <>
-            <Text style={styles.sectionTitle}>生成结果</Text>
+            <View style={styles.resultHeader}>
+              <Text style={styles.sectionTitle}>生成结果</Text>
+              <TouchableOpacity onPress={() => setShowRaw(!showRaw)}>
+                <Text style={styles.toggleRaw}>{showRaw ? '🎨 渲染' : '📋 原文'}</Text>
+              </TouchableOpacity>
+            </View>
             <View style={styles.resultCard}>
-              <Markdown styles={markdownStyles}>{result}</Markdown>
+              {showRaw ? (
+                <Text style={styles.rawText} selectable>{result}</Text>
+              ) : (
+                <Markdown styles={markdownStyles}>{result}</Markdown>
+              )}
             </View>
           </>
         )}
@@ -383,10 +393,28 @@ const styles = StyleSheet.create({
     color: '#FF3B30',
     lineHeight: 20,
   },
+  resultHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 20,
+    marginBottom: 8,
+    marginLeft: 4,
+  },
+  toggleRaw: {
+    fontSize: 13,
+    color: '#007AFF',
+    fontWeight: '600',
+  },
   resultCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 10,
     padding: 16,
+  },
+  rawText: {
+    fontSize: 16,
+    color: '#000',
+    lineHeight: 26,
   },
   resultText: {
     fontSize: 16,
