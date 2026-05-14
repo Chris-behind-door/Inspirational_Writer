@@ -8,7 +8,7 @@ import {
   Alert,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 
 const INSPIRATION_STORAGE_KEY = '@inhunt/inspirations';
 
@@ -63,7 +63,6 @@ export default function CollectionScreen() {
       <Text style={styles.sectionTitle}>共 {items.length} 条灵感</Text>
       {items.map(item => {
         const isExpanded = expandedId === item.id;
-        const preview = item.result.slice(0, 80);
         return (
           <View key={item.id} style={styles.card}>
             <TouchableOpacity

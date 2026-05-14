@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -67,7 +67,6 @@ export default function InspireScreen() {
   const [generating, setGenerating] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const scrollRef = useRef<ScrollView>(null);
 
   // 加载配置
   useEffect(() => {
@@ -197,7 +196,6 @@ export default function InspireScreen() {
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView
-        ref={scrollRef}
         style={styles.page}
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
