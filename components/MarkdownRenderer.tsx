@@ -57,7 +57,7 @@ function renderInlines(nodes: any[]): React.ReactNode[] {
     const key = `inl${i}`;
 
     switch (node.type) {
-      case 'text':       return <Text key={key}>{typeof content === 'string' ? content.replace(/\n+$/, '') : content}</Text>;
+      case 'text':       return <Text key={key}>{content}</Text>;
       case 'strong':     return <Text key={key} style={s.strong}>{renderInlines(Array.isArray(content) ? content : [content])}</Text>;
       case 'em':         return <Text key={key} style={s.em}>{renderInlines(Array.isArray(content) ? content : [content])}</Text>;
       case 'del':        return <Text key={key} style={s.del}>{renderInlines(Array.isArray(content) ? content : [content])}</Text>;
@@ -195,7 +195,10 @@ export default function MarkdownRenderer({ children }: Props) {
 
   let ast: any[];
   try {
-    ast = defaultBlockParse(children);
+    // Fix simple-markdown bug: headings not recognized when directly
+    // followed by a list (no blank line between them)
+    const fixed = children.replace(/^(#{1,6}\s+.+)\n([*\-+]|\d+\.)\s/gm, '$1\n\n$2 ');
+    ast = defaultBlockParse(fixed);
   } catch {
     return <Text style={s.body}>{children}</Text>;
   }
