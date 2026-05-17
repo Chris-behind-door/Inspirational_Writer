@@ -53,9 +53,9 @@ export default function InspireCardList({ cards, generating, hasConfig, error, o
 
       {cards.length === 0 ? (
         <View style={styles.emptyResult}>
-          <Text style={styles.emptyResultIcon}>✨</Text>
-          <Text style={styles.emptyResultTitle}>还没有生成灵感</Text>
-          <Text style={styles.emptyResultHint}>在底部选择类型，补充一点方向，然后点击生成。</Text>
+          <Text style={styles.emptyResultIcon}>{generating ? '⏳' : '✨'}</Text>
+          <Text style={styles.emptyResultTitle}>{generating ? '正在生成灵感' : '还没有生成灵感'}</Text>
+          <Text style={styles.emptyResultHint}>{generating ? 'AI 正在构思中，请稍等片刻…' : '在底部选择类型，补充一点方向，然后点击生成。'}</Text>
         </View>
       ) : (
         <FlatList
