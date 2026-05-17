@@ -140,6 +140,16 @@ export default function InspireScreen() {
     setCards([]);
     setDetailCard(null);
 
+    const concurrency = getSettings().concurrency || 1;
+    const total = 8;
+    const base = Math.floor(total / concurrency);
+    const remainder = total % concurrency;
+
+    const requestCounts: number[] = [];
+    for (let i = 0; i < concurrency; i++) {
+      requestCounts.push(base + (i < remainder ? 1 : 0));
+    }
+
     try {
       const settings = getSettings();
       const prefs = getPreferences();
@@ -156,45 +166,60 @@ export default function InspireScreen() {
         systemParts.push(`【补充要求】${prefs.extraInstructions}`);
       }
       systemParts.push('输出必须简短、适合移动端灵感卡片展示。');
+      const systemContent = systemParts.join('\n\n');
 
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${active.apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: active.modelName,
-          messages: [
-            { role: 'system', content: systemParts.join('\n\n') },
-            { role: 'user', content: buildPrompt(preset, customPrompt) },
-          ],
-          temperature: Math.max(settings.temperature, 0.9),
-          top_p: settings.topP,
-          frequency_penalty: settings.frequencyPenalty,
-          presence_penalty: settings.presencePenalty,
-        }),
+      const allCards: InspirationCard[] = [];
+      let failedCount = 0;
+
+      const results = await Promise.allSettled(
+        requestCounts.map(count =>
+          fetch(url, {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${active.apiKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              model: active.modelName,
+              messages: [
+                { role: 'system', content: systemContent },
+                { role: 'user', content: buildPrompt(preset, customPrompt, count) },
+              ],
+              temperature: Math.max(settings.temperature, 0.9),
+              top_p: settings.topP,
+              frequency_penalty: settings.frequencyPenalty,
+              presence_penalty: settings.presencePenalty,
+            }),
+          }).then(async res => {
+            if (!res.ok) {
+              const errText = await res.text().catch(() => '');
+              throw new Error(`HTTP ${res.status}: ${errText || res.statusText}`);
+            }
+            const data = await res.json();
+            const content = data?.choices?.[0]?.message?.content;
+            if (!content) throw new Error('模型未返回内容');
+            return parseGeneratedCards(content, selectedType);
+          }),
+        ),
+      );
+
+      results.forEach(result => {
+        if (result.status === 'fulfilled') {
+          allCards.push(...result.value);
+        } else {
+          failedCount++;
+        }
       });
 
-      if (!res.ok) {
-        const errText = await res.text().catch(() => '');
-        throw new Error(`HTTP ${res.status}: ${errText || res.statusText}`);
+      if (allCards.length === 0) {
+        throw new Error(failedCount > 0
+          ? `${failedCount} 路请求全部失败，请检查 API 配置或网络。`
+          : '模型返回格式无法解析：没有识别到可展示的灵感卡片。请重新生成一次');
       }
 
-      const data = await res.json();
-      const content = data?.choices?.[0]?.message?.content;
-      if (!content) {
-        throw new Error('模型未返回内容，请检查 API 配置');
-      }
-
-      const generated = parseGeneratedCards(content, selectedType);
-      if (generated.length === 0) {
-        throw new Error('模型返回格式无法解析：没有识别到可展示的灵感卡片。请重新生成一次');
-      }
-
-      setCards(generated);
-      if (generated.length < 8) {
-        setError(`模型要求返回 8 条，但当前只成功解析出 ${generated.length} 条。未使用本地备用灵感补全，建议重新生成一次。`);
+      setCards(allCards.slice(0, total));
+      if (allCards.length < total) {
+        setError(`期望 ${total} 条，成功解析 ${allCards.length} 条。${failedCount > 0 ? `${failedCount} 路请求失败。` : ''}建议重新生成一次。`);
       }
     } catch (e: any) {
       setCards([]);

@@ -108,16 +108,16 @@ export function buildFallbackCards(type: PresetType, customPrompt: string): Insp
   }));
 }
 
-export function buildPrompt(preset: ReturnType<typeof getPreset>, customPrompt: string) {
+export function buildPrompt(preset: ReturnType<typeof getPreset>, customPrompt: string, count: number = 8) {
   const extra = customPrompt.trim();
   return [
-    `请生成 8 个不同的"${preset.label}"网文灵感卡片。`,
+    `请生成 ${count} 个不同的"${preset.label}"网文灵感卡片。`,
     extra ? `用户补充描述：${extra}` : '用户没有补充描述，请自由随机发散。',
     '硬性输出要求：',
-    '1. 必须返回 8 条，不多不少。',
+    `1. 必须返回 ${count} 条，不多不少。`,
     '2. 每条必须有明确 title 和 content。',
     '3. content 控制在 65~85 个汉字左右，最多不能超过 120 个汉字。',
-    '4. 8 条灵感之间不要重复，标题也不要重复。',
+    `4. ${count} 条灵感之间不要重复，标题也不要重复。`,
     '5. 不要解释，不要前言，不要总结，不要 Markdown，不要代码块，不要编号列表。',
     '6. 整个回复只能是严格 JSON 数组，数组元素只能使用英文键 title 和 content。',
     '7. 格式必须类似：[{"title":"标题","content":"约75字正文"}]。',
