@@ -31,6 +31,7 @@ const PARAMS: ParamDef[] = [
   { key: 'topP', label: 'Top P', sublabel: 'Top P', min: 0, max: 1, step: 0.1 },
   { key: 'frequencyPenalty', label: '频率惩罚', sublabel: 'Frequency Penalty', min: -2, max: 2, step: 0.1 },
   { key: 'presencePenalty', label: '存在惩罚', sublabel: 'Presence Penalty', min: -2, max: 2, step: 0.1 },
+  { key: 'concurrency', label: '并发数', sublabel: 'Concurrency', min: 1, max: 4, step: 1 },
 ];
 
 export default function ModelSettingsScreen() {
@@ -42,26 +43,37 @@ export default function ModelSettingsScreen() {
     loadSettings().then(() => setSettings({ ...getSettings() }));
   }, []);
 
+  const isInteger = useCallback((key: keyof ModelSettings) => {
+    const def = PARAMS.find(p => p.key === key);
+    return def ? def.step >= 1 : false;
+  }, []);
+
+  const formatValue = useCallback((key: keyof ModelSettings, value: number) => {
+    return isInteger(key) ? String(Math.round(value)) : value.toFixed(1);
+  }, [isInteger]);
+
   const update = useCallback((key: keyof ModelSettings, value: number) => {
-    const s = { ...settings, [key]: Math.round(value * 10) / 10 };
+    const rounded = isInteger(key) ? Math.round(value) : Math.round(value * 10) / 10;
+    const s = { ...settings, [key]: rounded };
     setSettings(s);
     saveSettings(s);
-  }, [settings]);
+  }, [settings, isInteger]);
 
   const openEditor = useCallback((key: keyof ModelSettings) => {
     setEditingKey(key);
-    setEditingValue(settings[key].toFixed(1));
-  }, [settings]);
+    setEditingValue(formatValue(key, settings[key]));
+  }, [settings, formatValue]);
 
   const commitEdit = useCallback(() => {
     if (!editingKey) return;
     const v = parseFloat(editingValue);
     if (isNaN(v)) { setEditingKey(null); return; }
     const def = PARAMS.find(p => p.key === editingKey)!;
-    const clamped = Math.round(Math.min(def.max, Math.max(def.min, v)) * 10) / 10;
+    const rounded = isInteger(editingKey) ? Math.round(v) : Math.round(v * 10) / 10;
+    const clamped = Math.min(def.max, Math.max(def.min, rounded));
     update(editingKey, clamped);
     setEditingKey(null);
-  }, [editingKey, editingValue, update]);
+  }, [editingKey, editingValue, update, isInteger]);
 
   return (
     <>
@@ -86,7 +98,7 @@ export default function ModelSettingsScreen() {
                 maximumTrackTintColor="#C7C7CC"
               />
               <TouchableOpacity onPress={() => openEditor(def.key)}>
-                <Text style={styles.paramValue}>{settings[def.key].toFixed(1)}</Text>
+                <Text style={styles.paramValue}>{formatValue(def.key, settings[def.key])}</Text>
               </TouchableOpacity>
             </View>
           </React.Fragment>

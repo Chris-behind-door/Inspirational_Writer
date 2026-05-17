@@ -18,6 +18,7 @@ export interface ModelSettings {
   topP: number;
   frequencyPenalty: number;
   presencePenalty: number;
+  concurrency: number;
 }
 
 export const DEFAULT_SETTINGS: ModelSettings = {
@@ -25,6 +26,7 @@ export const DEFAULT_SETTINGS: ModelSettings = {
   topP: 1.0,
   frequencyPenalty: 0,
   presencePenalty: 0,
+  concurrency: 1,
 };
 
 let presets: Preset[] = [];
