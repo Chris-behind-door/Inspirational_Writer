@@ -39,7 +39,4 @@ yarn-error.*
 # generated native folders
 /ios
 /android
-
-# submission materials (not for GitHub)
-*.pdf
-*.mp4
+.sisyphus/
