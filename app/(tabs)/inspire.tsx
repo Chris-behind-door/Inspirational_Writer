@@ -1,76 +1,114 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
+import { useFocusEffect } from '@react-navigation/native';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  ScrollView,
-  StyleSheet,
   ActivityIndicator,
+  Alert,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
+  StyleSheet,
+  TouchableWithoutFeedback,
+  View,
 } from 'react-native';
-import MarkdownRenderer from '../../components/MarkdownRenderer';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   getActivePreset,
-  getSettings,
   getPreferences,
+  getSettings,
+  loadPreferences,
   loadPresets,
   loadSettings,
-  loadPreferences,
 } from '../../configStore';
+import type { InspirationTag } from '../../shared/types';
+import { INSPIRATION_STORAGE_KEY, FOLDER_STORAGE_KEY, DEFAULT_FOLDER } from '../../shared/constants';
+import { normalizeFolderName, uniqueFolderNames, createId } from '../../shared/utils';
+import type { PresetType, InspirationCard } from '../../shared/parseCards';
+import { parseGeneratedCards } from '../../shared/parseCards';
+import { getPreset, buildFallbackCards, buildPrompt } from '../../shared/inspirePresets';
+import InspireCardList from '../../components/InspireCardList';
+import InspireControlPanel from '../../components/InspireControlPanel';
+import InspireDetailModal from '../../components/InspireDetailModal';
+import CaptureModal from '../../components/CaptureModal';
 
-const INSPIRATION_STORAGE_KEY = '@inhunt/inspirations';
-
-interface InspirationItem {
+type StoredInspirationItem = {
   id: string;
   type: string;
   prompt: string;
   result: string;
   createdAt: number;
-}
-
-type PresetType = 'character' | 'plot' | 'world' | 'dialogue';
-
-const PRESETS: { key: PresetType; label: string; icon: string; systemPrompt: string }[] = [
-  {
-    key: 'character',
-    label: '角色灵感',
-    icon: '👤',
-    systemPrompt: '你是一位网文角色设计师。请为用户创造一个令人难忘的小说角色，包含：姓名、外貌、性格、背景故事、核心欲望和表面欲望。用生动有趣的方式呈现。',
-  },
-  {
-    key: 'plot',
-    label: '情节转折',
-    icon: '🔄',
-    systemPrompt: '你是一位网文情节设计师。请为用户设计一个扣人心弦的情节转折/高潮场景，包含：场景设定、矛盾冲突、转折点、高潮效果。用画面感强的语言描写。',
-  },
-  {
-    key: 'world',
-    label: '世界观构建',
-    icon: '🌍',
-    systemPrompt: '你是一位网文世界观构建师。请为用户设计一个独特的世界观元素，包含：核心设定、规则体系、势力分布、隐藏的奥秘。让世界充满层次感。',
-  },
-  {
-    key: 'dialogue',
-    label: '对话片段',
-    icon: '💬',
-    systemPrompt: '你是一位网文对话大师。请为用户创作一段精彩的人物对话，包含：场景背景、对话内容、潜台词分析。对话要有张力、有节奏、有角色辨识度。',
-  },
-];
+  title: string;
+  content: string;
+  folderName: string;
+  tags: InspirationTag[];
+  updatedAt?: number;
+};
 
 export default function InspireScreen() {
+  const tabBarHeight = useBottomTabBarHeight();
   const [ready, setReady] = useState(false);
   const [hasConfig, setHasConfig] = useState(false);
-  const [selectedType, setSelectedType] = useState<PresetType | null>(null);
+  const [selectedType, setSelectedType] = useState<PresetType>('character');
   const [customPrompt, setCustomPrompt] = useState('');
   const [generating, setGenerating] = useState(false);
-  const [result, setResult] = useState<string | null>(null);
+  const [cards, setCards] = useState<InspirationCard[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [showRaw, setShowRaw] = useState(false);
+  const [folders, setFolders] = useState<string[]>([DEFAULT_FOLDER]);
+  const [latestFolder, setLatestFolder] = useState(DEFAULT_FOLDER);
+  const [detailCard, setDetailCard] = useState<InspirationCard | null>(null);
+  const [captureCard, setCaptureCard] = useState<InspirationCard | null>(null);
+  const [captureFolder, setCaptureFolder] = useState(DEFAULT_FOLDER);
+  const [newFolderName, setNewFolderName] = useState('');
+  const [androidKeyboardHeight, setAndroidKeyboardHeight] = useState(0);
 
-  // 加载配置
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    const show = Keyboard.addListener('keyboardDidShow', e => {
+      setAndroidKeyboardHeight(e.endCoordinates.height);
+    });
+    const hide = Keyboard.addListener('keyboardDidHide', () => {
+      setAndroidKeyboardHeight(0);
+    });
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
+
+  const loadFolders = useCallback(async () => {
+    try {
+      const rawFolders = await AsyncStorage.getItem(FOLDER_STORAGE_KEY);
+      const rawItems = await AsyncStorage.getItem(INSPIRATION_STORAGE_KEY);
+      const folderNames: string[] = [];
+
+      if (rawFolders) {
+        const parsedFolders = JSON.parse(rawFolders);
+        if (Array.isArray(parsedFolders)) {
+          parsedFolders.forEach((folder: string) => folderNames.push(normalizeFolderName(folder)));
+        }
+      }
+
+      if (rawItems) {
+        const parsedItems = JSON.parse(rawItems);
+        if (Array.isArray(parsedItems)) {
+          parsedItems.forEach((item: any) => {
+            if (item?.folderName) {
+              folderNames.push(normalizeFolderName(item.folderName));
+            }
+          });
+        }
+      }
+
+      const normalized = uniqueFolderNames(folderNames);
+      setFolders(normalized);
+      setLatestFolder(prev => (normalized.includes(prev) ? prev : normalized[0]));
+      await AsyncStorage.setItem(FOLDER_STORAGE_KEY, JSON.stringify(normalized));
+    } catch {
+      setFolders([DEFAULT_FOLDER]);
+      setLatestFolder(DEFAULT_FOLDER);
+    }
+  }, []);
+
   useEffect(() => {
     Promise.all([loadPresets(), loadSettings(), loadPreferences()]).then(() => {
       const active = getActivePreset();
@@ -81,22 +119,26 @@ export default function InspireScreen() {
     });
   }, []);
 
+  useFocusEffect(
+    useCallback(() => {
+      loadFolders();
+    }, [loadFolders]),
+  );
+
   const handleGenerate = useCallback(async () => {
     const active = getActivePreset();
-    if (!active) {
-      setError('请先在设置中配置 API 并选择应用');
-      return;
-    }
+    const preset = getPreset(selectedType);
 
-    const preset = PRESETS.find(p => p.key === selectedType);
-    if (!preset) {
-      setError('请选择一个灵感类型');
+    if (!active) {
+      setCards(buildFallbackCards(selectedType, customPrompt));
+      setError('尚未配置 API，已显示本地备用灵感，方便先测试页面和捕捉流程。');
       return;
     }
 
     setError(null);
-    setResult(null);
     setGenerating(true);
+    setCards([]);
+    setDetailCard(null);
 
     try {
       const settings = getSettings();
@@ -105,9 +147,6 @@ export default function InspireScreen() {
       const baseUrl = active.baseUrl.replace(/\/+$/, '');
       const url = `${baseUrl}/chat/completions`;
 
-      const messages: { role: string; content: string }[] = [];
-
-      // 系统提示：先加用户偏好，再加类型专用提示
       const systemParts: string[] = [];
       if (prefs.writingStyle) {
         systemParts.push(`【文风偏好】${prefs.writingStyle}`);
@@ -116,15 +155,7 @@ export default function InspireScreen() {
       if (prefs.extraInstructions) {
         systemParts.push(`【补充要求】${prefs.extraInstructions}`);
       }
-
-      messages.push({ role: 'system', content: systemParts.join('\n\n') });
-
-      // 用户自定义补充
-      let userContent = preset.label;
-      if (customPrompt.trim()) {
-        userContent = `${preset.label}：${customPrompt.trim()}`;
-      }
-      messages.push({ role: 'user', content: userContent });
+      systemParts.push('输出必须简短、适合移动端灵感卡片展示。');
 
       const res = await fetch(url, {
         method: 'POST',
@@ -134,8 +165,11 @@ export default function InspireScreen() {
         },
         body: JSON.stringify({
           model: active.modelName,
-          messages,
-          temperature: settings.temperature,
+          messages: [
+            { role: 'system', content: systemParts.join('\n\n') },
+            { role: 'user', content: buildPrompt(preset, customPrompt) },
+          ],
+          temperature: Math.max(settings.temperature, 0.9),
           top_p: settings.topP,
           frequency_penalty: settings.frequencyPenalty,
           presence_penalty: settings.presencePenalty,
@@ -153,29 +187,81 @@ export default function InspireScreen() {
         throw new Error('模型未返回内容，请检查 API 配置');
       }
 
-      setResult(content);
+      const generated = parseGeneratedCards(content, selectedType);
+      if (generated.length === 0) {
+        throw new Error('模型返回格式无法解析：没有识别到可展示的灵感卡片。请重新生成一次');
+      }
 
-      // 保存到灵感记录
-      const item: InspirationItem = {
-        id: Date.now().toString(),
-        type: preset.label,
-        prompt: customPrompt.trim() || preset.label,
-        result: content,
-        createdAt: Date.now(),
-      };
-      try {
-        const raw = await AsyncStorage.getItem(INSPIRATION_STORAGE_KEY);
-        const list: InspirationItem[] = raw ? JSON.parse(raw) : [];
-        list.unshift(item);
-        await AsyncStorage.setItem(INSPIRATION_STORAGE_KEY, JSON.stringify(list));
-      } catch { /* ignore */ }
-
+      setCards(generated);
+      if (generated.length < 8) {
+        setError(`模型要求返回 8 条，但当前只成功解析出 ${generated.length} 条。未使用本地备用灵感补全，建议重新生成一次。`);
+      }
     } catch (e: any) {
-      setError(e?.message || '生成失败，请检查网络和 API 配置');
+      setCards([]);
+      setError(e?.message || '生成失败，请检查模型返回格式或重新生成一次。');
     } finally {
       setGenerating(false);
     }
   }, [selectedType, customPrompt]);
+
+  const openCaptureModal = useCallback((card: InspirationCard) => {
+    setDetailCard(null);
+    loadFolders().finally(() => {
+      setCaptureCard(card);
+      setCaptureFolder(latestFolder || folders[0] || DEFAULT_FOLDER);
+      setNewFolderName('');
+    });
+  }, [folders, latestFolder, loadFolders]);
+
+  const persistFoldersIfNeeded = useCallback(async (folderName: string) => {
+    const normalizedName = normalizeFolderName(folderName);
+    const updated = uniqueFolderNames([...folders, normalizedName]);
+    setFolders(updated);
+    setLatestFolder(normalizedName);
+    await AsyncStorage.setItem(FOLDER_STORAGE_KEY, JSON.stringify(updated));
+    return normalizedName;
+  }, [folders]);
+
+  const handleCapture = useCallback(async () => {
+    if (!captureCard) return;
+
+    const folderName = normalizeFolderName(newFolderName || captureFolder);
+    const preset = getPreset(captureCard.type);
+    const now = Date.now();
+
+    const item: StoredInspirationItem = {
+      id: createId('captured'),
+      type: preset.label,
+      prompt: customPrompt.trim() || preset.label,
+      result: captureCard.content,
+      createdAt: now,
+      title: captureCard.title,
+      content: captureCard.content,
+      folderName,
+      tags: [preset.tag],
+      updatedAt: now,
+    };
+
+    try {
+      await persistFoldersIfNeeded(folderName);
+      const raw = await AsyncStorage.getItem(INSPIRATION_STORAGE_KEY);
+      const list: StoredInspirationItem[] = raw ? JSON.parse(raw) : [];
+      const updated = [item, ...list];
+      await AsyncStorage.setItem(INSPIRATION_STORAGE_KEY, JSON.stringify(updated));
+
+      setCards(prev => prev.map(card => (
+        card.id === captureCard.id ? { ...card, captured: true } : card
+      )));
+      setDetailCard(prev => (
+        prev?.id === captureCard.id ? { ...prev, captured: true } : prev
+      ));
+      setCaptureCard(null);
+      setNewFolderName('');
+      Alert.alert('已捕捉', `灵感已添加至"${folderName}"。`);
+    } catch {
+      Alert.alert('保存失败', '没有成功写入灵感记录，请稍后再试。');
+    }
+  }, [captureCard, captureFolder, customPrompt, newFolderName, persistFoldersIfNeeded]);
 
   if (!ready) {
     return (
@@ -185,117 +271,58 @@ export default function InspireScreen() {
     );
   }
 
-  if (!hasConfig) {
-    return (
-      <View style={styles.center}>
-        <Text style={styles.emptyIcon}>⚙️</Text>
-        <Text style={styles.emptyTitle}>尚未配置 API</Text>
-        <Text style={styles.emptyHint}>请在「设置 → API 配置」中添加 API 预设</Text>
-      </View>
-    );
-  }
-
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView
-        style={styles.page}
-        contentContainerStyle={styles.content}
-        keyboardShouldPersistTaps="handled"
-      >
-        {/* 灵感类型选择 */}
-        <Text style={styles.sectionTitle}>选择灵感类型</Text>
-        <View style={styles.presetGrid}>
-          {PRESETS.map(p => (
-            <TouchableOpacity
-              key={p.key}
-              style={[
-                styles.presetCard,
-                selectedType === p.key && styles.presetCardActive,
-              ]}
-              onPress={() => {
-                setSelectedType(p.key);
-                setError(null);
-              }}
-            >
-              <Text style={styles.presetIcon}>{p.icon}</Text>
-              <Text style={styles.presetLabel}>{p.label}</Text>
-            </TouchableOpacity>
-          ))}
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+        <View style={[styles.inner, androidKeyboardHeight > 0 && { paddingBottom: Math.max(0, androidKeyboardHeight - tabBarHeight) }]}>
+          <InspireCardList
+            cards={cards}
+            generating={generating}
+            hasConfig={hasConfig}
+            error={error}
+            onCardPress={setDetailCard}
+          />
+          <InspireControlPanel
+            selectedType={selectedType}
+            onSelectType={type => { setSelectedType(type); setError(null); }}
+            customPrompt={customPrompt}
+            onChangePrompt={setCustomPrompt}
+            generating={generating}
+            onGenerate={handleGenerate}
+          />
         </View>
+      </TouchableWithoutFeedback>
 
-        {/* 自定义补充 */}
-        {selectedType && (
-          <>
-            <Text style={styles.sectionTitle}>补充描述（可选）</Text>
-            <View style={styles.card}>
-              <TextInput
-                style={styles.promptInput}
-                value={customPrompt}
-                onChangeText={setCustomPrompt}
-                placeholder={`比如："修仙世界的主角是炼丹师"…`}
-                placeholderTextColor="#C7C7CC"
-                multiline
-                numberOfLines={3}
-                textAlignVertical="top"
-              />
-            </View>
+      <InspireDetailModal
+        card={detailCard}
+        onClose={() => setDetailCard(null)}
+        onCapture={openCaptureModal}
+      />
 
-            {/* 生成按钮 */}
-            <TouchableOpacity
-              style={[styles.generateButton, generating && styles.buttonDisabled]}
-              onPress={handleGenerate}
-              disabled={generating}
-            >
-              {generating ? (
-                <>
-                  <ActivityIndicator size="small" color="#FFF" style={{ marginRight: 8 }} />
-                  <Text style={styles.generateButtonText}>AI 正在生成灵感…</Text>
-                </>
-              ) : (
-                <Text style={styles.generateButtonText}>✨ 生成灵感</Text>
-              )}
-            </TouchableOpacity>
-          </>
-        )}
-
-        {/* 错误提示 */}
-        {error && (
-          <View style={styles.errorCard}>
-            <Text style={styles.errorText}>⚠️ {error}</Text>
-          </View>
-        )}
-
-        {/* 生成结果 */}
-        {result && (
-          <>
-            <View style={styles.resultHeader}>
-              <Text style={styles.sectionTitle}>生成结果</Text>
-              <TouchableOpacity onPress={() => setShowRaw(!showRaw)}>
-                <Text style={styles.toggleRaw}>{showRaw ? '🎨 渲染' : '📋 原文'}</Text>
-              </TouchableOpacity>
-            </View>
-            <View style={styles.resultCard}>
-              {showRaw ? (
-                <Text style={styles.rawText} selectable>{result}</Text>
-              ) : (
-                <MarkdownRenderer>{result}</MarkdownRenderer>
-              )}
-            </View>
-          </>
-        )}
-      </ScrollView>
+      <CaptureModal
+        card={captureCard}
+        folders={folders}
+        captureFolder={captureFolder}
+        newFolderName={newFolderName}
+        onChangeNewFolderName={setNewFolderName}
+        onSelectFolder={folder => { setCaptureFolder(folder); setNewFolderName(''); }}
+        onCapture={handleCapture}
+        onClose={() => setCaptureCard(null)}
+      />
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  page: {
+  container: {
     flex: 1,
     backgroundColor: '#F2F2F7',
   },
-  content: {
-    padding: 16,
-    paddingBottom: 40,
+  inner: {
+    flex: 1,
   },
   center: {
     flex: 1,
@@ -304,122 +331,4 @@ const styles = StyleSheet.create({
     backgroundColor: '#F2F2F7',
     padding: 32,
   },
-  emptyIcon: {
-    fontSize: 48,
-    marginBottom: 12,
-  },
-  emptyTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#000',
-    marginBottom: 8,
-  },
-  emptyHint: {
-    fontSize: 15,
-    color: '#6D6D72',
-    textAlign: 'center',
-  },
-  sectionTitle: {
-    fontSize: 13,
-    color: '#6D6D72',
-    textTransform: 'uppercase',
-    marginBottom: 8,
-    marginLeft: 4,
-    marginTop: 20,
-  },
-  presetGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  presetCard: {
-    width: '47%',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 10,
-    padding: 20,
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: 'transparent',
-  },
-  presetCardActive: {
-    borderColor: '#007AFF',
-    backgroundColor: '#E8F0FE',
-  },
-  presetIcon: {
-    fontSize: 32,
-    marginBottom: 8,
-  },
-  presetLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#000',
-  },
-  card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 10,
-    overflow: 'hidden',
-  },
-  promptInput: {
-    fontSize: 16,
-    color: '#000',
-    padding: 14,
-    minHeight: 80,
-  },
-  generateButton: {
-    backgroundColor: '#007AFF',
-    borderRadius: 10,
-    paddingVertical: 16,
-    alignItems: 'center',
-    marginTop: 14,
-    flexDirection: 'row',
-    justifyContent: 'center',
-  },
-  generateButtonText: {
-    color: '#FFFFFF',
-    fontSize: 17,
-    fontWeight: '600',
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  errorCard: {
-    backgroundColor: '#FFF3F2',
-    borderRadius: 10,
-    padding: 14,
-    marginTop: 12,
-  },
-  errorText: {
-    fontSize: 14,
-    color: '#FF3B30',
-    lineHeight: 20,
-  },
-  resultHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 20,
-    marginBottom: 8,
-    marginLeft: 4,
-  },
-  toggleRaw: {
-    fontSize: 13,
-    color: '#007AFF',
-    fontWeight: '600',
-  },
-  resultCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 10,
-    padding: 16,
-  },
-  rawText: {
-    fontSize: 16,
-    color: '#000',
-    lineHeight: 26,
-  },
-  resultText: {
-    fontSize: 16,
-    color: '#000',
-    lineHeight: 26,
-  },
 });
-
