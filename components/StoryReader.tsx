@@ -25,11 +25,11 @@ const BOTTOM_BAR_H = 71; // paddingTop(10) + content(~26) + paddingBottom(34) + 
 const PAGE_PAD_H = 72;   // paddingVertical(36) × 2
 const LINE_HEIGHT = 34;
 const FONT_SIZE = 18;
-// Approximate CJK char width ≈ font size
-const CHARS_PER_LINE = Math.floor((SCREEN_WIDTH - 56) / FONT_SIZE); // 56 = paddingHorizontal(28)×2
+// CJK chars are ≈ font size wide, but justify + mixed punctuation packs ~20% more
+const CHARS_PER_LINE = Math.floor((SCREEN_WIDTH - 56) / FONT_SIZE * 1.2);
 const AVAILABLE_HEIGHT = SCREEN_HEIGHT - TOP_BAR_H - BOTTOM_BAR_H - PAGE_PAD_H;
 const LINES_PER_PAGE = Math.floor(AVAILABLE_HEIGHT / LINE_HEIGHT);
-const CHARS_PER_PAGE = Math.max(CHARS_PER_LINE * LINES_PER_PAGE, 100);
+const CHARS_PER_PAGE = Math.max(CHARS_PER_LINE * LINES_PER_PAGE, 200);
 
 export default function StoryReader({ story, onClose }: Props) {
   const [showUI, setShowUI] = useState(true);
@@ -39,18 +39,29 @@ export default function StoryReader({ story, onClose }: Props) {
     if (!story.content?.trim()) {
       return ['（还没有内容）\n\n返回编辑器开始写作吧。'];
     }
-    const paragraphs = story.content.split(/\n\n+/);
+    const text = story.content;
     const result: string[] = [];
-    let buf = '';
-    for (const para of paragraphs) {
-      if ((buf + '\n\n' + para).length > CHARS_PER_PAGE && buf) {
-        result.push(buf);
-        buf = para;
-      } else {
-        buf = buf ? buf + '\n\n' + para : para;
+    let pos = 0;
+
+    while (pos < text.length) {
+      let end = Math.min(pos + CHARS_PER_PAGE, text.length);
+
+      // Try to break at a paragraph boundary in the latter 30% of the chunk
+      if (end < text.length) {
+        const searchStart = pos + Math.floor(CHARS_PER_PAGE * 0.7);
+        const breakIdx = text.lastIndexOf('\n\n', end);
+        if (breakIdx >= searchStart) {
+          end = breakIdx;
+        }
       }
+
+      result.push(text.slice(pos, end).trim());
+      // Skip the paragraph break we landed on
+      pos = end;
+      if (text[pos] === '\n') pos++;
+      if (text[pos] === '\n') pos++;
     }
-    if (buf) result.push(buf);
+
     return result.length > 0 ? result : ['（内容太短，无法分页）'];
   }, [story.content]);
 
