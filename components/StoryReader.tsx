@@ -17,8 +17,19 @@ interface Props {
   onClose: () => void;
 }
 
-const CHARS_PER_PAGE = 380;
+// Layout constants — measured from styles below
 const SCREEN_WIDTH = Dimensions.get('window').width;
+const SCREEN_HEIGHT = Dimensions.get('window').height;
+const TOP_BAR_H = 81;    // paddingTop(44) + content(~26) + paddingBottom(10) + border(1)
+const BOTTOM_BAR_H = 71; // paddingTop(10) + content(~26) + paddingBottom(34) + border(1)
+const PAGE_PAD_H = 72;   // paddingVertical(36) × 2
+const LINE_HEIGHT = 34;
+const FONT_SIZE = 18;
+// Approximate CJK char width ≈ font size
+const CHARS_PER_LINE = Math.floor((SCREEN_WIDTH - 56) / FONT_SIZE); // 56 = paddingHorizontal(28)×2
+const AVAILABLE_HEIGHT = SCREEN_HEIGHT - TOP_BAR_H - BOTTOM_BAR_H - PAGE_PAD_H;
+const LINES_PER_PAGE = Math.floor(AVAILABLE_HEIGHT / LINE_HEIGHT);
+const CHARS_PER_PAGE = Math.max(CHARS_PER_LINE * LINES_PER_PAGE, 100);
 
 export default function StoryReader({ story, onClose }: Props) {
   const [showUI, setShowUI] = useState(true);
