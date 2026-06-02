@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
-import React, { useCallback, useState, useRef, useEffect } from 'react';
+import React, { useCallback, useMemo, useState, useRef, useEffect } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -19,7 +19,7 @@ import type { InspirationItem } from '../shared/types';
 import { INSPIRATION_STORAGE_KEY } from '../shared/constants';
 import { createId } from '../shared/utils';
 import type { Story } from '../shared/storyData';
-import { countChars } from '../shared/storyData';
+import { countChars, parseChapters } from '../shared/storyData';
 import { getActivePreset, getSettings, getPreferences } from '../configStore';
 
 interface Props {
@@ -35,13 +35,12 @@ export default function StoryEditor({ story, inspirations, onClose, onSave }: Pr
   const tabBarHeight = useBottomTabBarHeight();
   const [title, setTitle] = useState(story.title);
   const [content, setContent] = useState(story.content);
-  const [outline, setOutline] = useState<string[]>(story.outline);
   const [pinnedIds, setPinnedIds] = useState<string[]>(story.pinnedInspirationIds);
   const [activePanel, setActivePanel] = useState<ToolPanel>('none');
   const [aiInstruction, setAiInstruction] = useState('');
   const [aiGenerating, setAiGenerating] = useState(false);
   const [aiResult, setAiResult] = useState<string | null>(null);
-  const [newOutlineItem, setNewOutlineItem] = useState('');
+  const [newChapterTitle, setNewChapterTitle] = useState('');
   const [selectedInspiration, setSelectedInspiration] = useState<InspirationItem | null>(null);
   const [contentSelection, setContentSelection] = useState<{ start: number; end: number } | undefined>(undefined);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
@@ -73,6 +72,9 @@ export default function StoryEditor({ story, inspirations, onClose, onSave }: Pr
   useEffect(() => {
     clearTimeout(saveTimeout.current);
     saveTimeout.current = setTimeout(() => {
+      // Derive outline from content headings
+      const chapters = parseChapters(content);
+      const outline = chapters.filter(c => c.title).map(c => c.title!);
       onSave({
         ...story,
         title,
@@ -83,7 +85,7 @@ export default function StoryEditor({ story, inspirations, onClose, onSave }: Pr
       });
     }, 800);
     return () => clearTimeout(saveTimeout.current);
-  }, [title, content, outline, pinnedIds]);
+  }, [title, content, pinnedIds]);
 
   const pinnedInspirations = inspirations.filter(i => pinnedIds.includes(i.id));
   const charCount = countChars(content);
@@ -101,50 +103,60 @@ export default function StoryEditor({ story, inspirations, onClose, onSave }: Pr
     setPinnedIds(prev => prev.filter(x => x !== id));
   };
 
-  // ── Outline Management ──────────────────────────────────
-  const addOutlineItem = () => {
-    const text = newOutlineItem.trim();
-    if (!text) return;
-    setOutline(prev => [...prev, text]);
-    setNewOutlineItem('');
-  };
-  const removeOutlineItem = (index: number) => {
-    setOutline(prev => prev.filter((_, i) => i !== index));
-  };
-  const reorderOutline = (index: number, direction: 'up' | 'down') => {
-    setOutline(prev => {
-      const next = [...prev];
-      const target = direction === 'up' ? index - 1 : index + 1;
-      if (target < 0 || target >= next.length) return prev;
-      [next[index], next[target]] = [next[target], next[index]];
-      return next;
-    });
-  };
+  // ── Chapter Management (derived from content ## headings) ──
+  const chapters = useMemo(() => parseChapters(content), [content]);
 
-  // Jump to a chapter in the content editor
-  const jumpToOutlineItem = (title: string) => {
+  const jumpToChapter = (title: string) => {
     const heading = `## ${title}`;
     const idx = content.indexOf(heading);
     if (idx >= 0) {
-      // Found — set cursor after the heading line
       const afterLine = content.indexOf('\n', idx);
       const pos = afterLine >= 0 ? afterLine + 1 : idx + heading.length;
       setContentSelection({ start: pos, end: pos });
       setActivePanel('none');
       contentRef.current?.focus();
-    } else {
-      // Not found — append the chapter heading at the end
-      const separator = content.trim() ? '\n\n' : '';
-      const newContent = content.trimEnd() + separator + heading + '\n\n';
-      const pos = newContent.length;
-      setContent(newContent);
-      // Defer selection so the content update applies first
-      setTimeout(() => {
-        setContentSelection({ start: pos, end: pos });
-        setActivePanel('none');
-        contentRef.current?.focus();
-      }, 50);
     }
+  };
+
+  const addChapter = () => {
+    const title = newChapterTitle.trim();
+    if (!title) return;
+    const heading = `## ${title}`;
+    const separator = content.trim() ? '\n\n' : '';
+    const newContent = content.trimEnd() + separator + heading + '\n\n';
+    setContent(newContent);
+    setNewChapterTitle('');
+    // Jump to the new chapter
+    setTimeout(() => {
+      const pos = newContent.length;
+      setContentSelection({ start: pos, end: pos });
+      setActivePanel('none');
+      contentRef.current?.focus();
+    }, 50);
+  };
+
+  const deleteChapter = (title: string) => {
+    Alert.alert(
+      '删除章节',
+      `确定要删除「${title}」及其内容吗？`,
+      [
+        { text: '取消', style: 'cancel' },
+        {
+          text: '删除',
+          style: 'destructive',
+          onPress: () => {
+            const heading = `## ${title}`;
+            // Find this chapter's range
+            const start = content.indexOf(heading);
+            if (start < 0) return;
+            // Find the next chapter or end of content
+            const nextHeading = content.indexOf('\n## ', start + heading.length);
+            const end = nextHeading >= 0 ? nextHeading + 1 : content.length;
+            setContent(prev => prev.slice(0, start) + prev.slice(end));
+          },
+        },
+      ],
+    );
   };
 
   // ── AI Assist ───────────────────────────────────────────
@@ -179,8 +191,9 @@ export default function StoryEditor({ story, inspirations, onClose, onSave }: Pr
           .join('\n');
         contextParts.push(`【参考灵感】\n${pinText}`);
       }
-      if (outline.length > 0) {
-        contextParts.push(`【大纲】\n${outline.join('\n')}`);
+      if (chapters.some(c => c.title)) {
+        const chapterTitles = chapters.filter(c => c.title).map(c => c.title!);
+        contextParts.push(`【大纲】\n${chapterTitles.join('\n')}`);
       }
 
       const systemParts: string[] = [];
@@ -230,7 +243,7 @@ export default function StoryEditor({ story, inspirations, onClose, onSave }: Pr
     } finally {
       setAiGenerating(false);
     }
-  }, [aiInstruction, content, outline, pinnedInspirations]);
+  }, [aiInstruction, content, chapters, pinnedInspirations]);
 
   const insertAiResult = () => {
     if (!aiResult) return;
@@ -316,46 +329,44 @@ export default function StoryEditor({ story, inspirations, onClose, onSave }: Pr
         </View>
       )}
 
-      {/* ── Outline (collapsible) ────────────────── */}
+      {/* ── Chapters (collapsible, auto-parsed from content) ── */}
       {activePanel === 'outline' && (
         <View style={s.panel}>
           <View style={s.panelHeader}>
-            <Text style={s.panelTitle}>📋 大纲</Text>
+            <Text style={s.panelTitle}>📋 章节</Text>
             <TouchableOpacity onPress={() => setActivePanel('none')}>
               <Text style={s.panelClose}>收起</Text>
             </TouchableOpacity>
           </View>
 
-          {outline.map((item, idx) => (
-            <View key={idx} style={s.outlineItem}>
-              <View style={s.outlineItemLeft}>
-                <TouchableOpacity onPress={() => reorderOutline(idx, 'up')} disabled={idx === 0}>
-                  <Text style={[s.outlineArrow, idx === 0 && s.outlineArrowDisabled]}>↑</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => reorderOutline(idx, 'down')} disabled={idx === outline.length - 1}>
-                  <Text style={[s.outlineArrow, idx === outline.length - 1 && s.outlineArrowDisabled]}>↓</Text>
-                </TouchableOpacity>
-              </View>
-              <TouchableOpacity style={s.outlineTextTouch} onPress={() => jumpToOutlineItem(item)}>
-                <Text style={s.outlineText}>{item}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => removeOutlineItem(idx)}>
-                <Text style={s.outlineDelete}>✕</Text>
-              </TouchableOpacity>
-            </View>
-          ))}
+          {chapters.filter(c => c.title).length > 0 ? (
+            chapters.map((ch, idx) =>
+              ch.title ? (
+                <View key={idx} style={s.outlineItem}>
+                  <TouchableOpacity style={s.outlineTextTouch} onPress={() => jumpToChapter(ch.title!)}>
+                    <Text style={s.outlineText}>{ch.title}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => deleteChapter(ch.title!)} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+                    <Text style={s.outlineDelete}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : null,
+            )
+          ) : (
+            <Text style={s.outlineHint}>在正文里用 ## 标题 来创建章节\n或点击下方按钮添加</Text>
+          )}
 
           <View style={s.outlineAddRow}>
             <TextInput
               style={s.outlineInput}
-              value={newOutlineItem}
-              onChangeText={setNewOutlineItem}
-              placeholder="添加大纲项…"
+              value={newChapterTitle}
+              onChangeText={setNewChapterTitle}
+              placeholder="新章节标题…"
               placeholderTextColor="#C7C7CC"
               returnKeyType="done"
-              onSubmitEditing={addOutlineItem}
+              onSubmitEditing={addChapter}
             />
-            <TouchableOpacity style={s.outlineAddBtn} onPress={addOutlineItem}>
+            <TouchableOpacity style={s.outlineAddBtn} onPress={addChapter}>
               <Text style={s.outlineAddBtnText}>添加</Text>
             </TouchableOpacity>
           </View>
@@ -377,9 +388,9 @@ export default function StoryEditor({ story, inspirations, onClose, onSave }: Pr
               已附带 {pinnedInspirations.length} 条灵感作为上下文
             </Text>
           )}
-          {outline.length > 0 && (
+          {chapters.some(c => c.title) && (
             <Text style={s.aiContextHint}>
-              已附带大纲（{outline.length} 项）作为上下文
+              已附带大纲（{chapters.filter(c => c.title).length} 章）作为上下文
             </Text>
           )}
 
@@ -487,7 +498,7 @@ export default function StoryEditor({ story, inspirations, onClose, onSave }: Pr
         >
           <Text style={s.toolBtnEmoji}>📋</Text>
           <Text style={[s.toolBtnLabel, activePanel === 'outline' && s.toolBtnLabelActive]}>
-            大纲{outline.length > 0 ? `(${outline.length})` : ''}
+            章节{chapters.filter(c => c.title).length > 0 ? `(${chapters.filter(c => c.title).length})` : ''}
           </Text>
         </TouchableOpacity>
         </View>
@@ -612,12 +623,10 @@ const s = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#F2F2F7',
   },
-  outlineItemLeft: { flexDirection: 'row', marginRight: 6 },
-  outlineArrow: { fontSize: 14, color: '#007AFF', paddingHorizontal: 4 },
-  outlineArrowDisabled: { color: '#D1D1D6' },
   outlineTextTouch: { flex: 1 },
   outlineText: { flex: 1, fontSize: 15, color: '#1C1C1E' },
   outlineDelete: { fontSize: 14, color: '#C7C7CC', marginLeft: 8 },
+  outlineHint: { fontSize: 14, color: '#8E8E93', lineHeight: 22, marginBottom: 8 },
   outlineAddRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8, gap: 8 },
   outlineInput: {
     flex: 1,

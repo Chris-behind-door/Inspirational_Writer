@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import type { Story } from '../shared/storyData';
-import { countChars, timeAgo } from '../shared/storyData';
+import { countChars, parseChapters, timeAgo } from '../shared/storyData';
 
 interface Props {
   story: Story;
@@ -13,6 +13,7 @@ interface Props {
 export default function StoryCard({ story, onPress, onRead, onDelete }: Props) {
   const charCount = countChars(story.content);
   const pinCount = story.pinnedInspirationIds.length;
+  const chapters = parseChapters(story.content).filter(c => c.title);
 
   return (
     <TouchableOpacity style={styles.card} onPress={() => onPress(story)} activeOpacity={0.7}>
@@ -33,18 +34,18 @@ export default function StoryCard({ story, onPress, onRead, onDelete }: Props) {
         <View style={styles.metaLeft}>
           <Text style={styles.metaText}>{charCount} 字</Text>
           {pinCount > 0 && <Text style={styles.metaText}>📌 {pinCount}</Text>}
-          {story.outline.length > 0 && <Text style={styles.metaText}>📋 {story.outline.length} 章</Text>}
+          {chapters.length > 0 && <Text style={styles.metaText}>📋 {chapters.length} 章</Text>}
         </View>
         <Text style={styles.timeText}>{timeAgo(story.updatedAt)}</Text>
       </View>
 
       <View style={styles.cardFooter}>
-        {story.outline.length > 0 ? (
+        {chapters.length > 0 ? (
           <Text style={styles.outlineHint} numberOfLines={1}>
-            📋 {story.outline[0]}
+            📋 {chapters[0].title}
           </Text>
         ) : (
-          <Text style={styles.noOutline}>暂无大纲</Text>
+          <Text style={styles.noOutline}>暂无章节</Text>
         )}
         <TouchableOpacity onPress={() => onDelete(story.id)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
           <Text style={styles.deleteText}>删除</Text>
