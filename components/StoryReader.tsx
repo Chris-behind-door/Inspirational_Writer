@@ -25,8 +25,8 @@ const BOTTOM_BAR_H = 71; // paddingTop(10) + content(~26) + paddingBottom(34) + 
 const PAGE_PAD_H = 72;   // paddingVertical(36) × 2
 const LINE_HEIGHT = 34;
 const FONT_SIZE = 18;
-// CJK chars are ≈ font size wide, but justify + mixed punctuation packs ~20% more
-const CHARS_PER_LINE = Math.floor((SCREEN_WIDTH - 56) / FONT_SIZE * 1.2);
+// CJK chars ≈ font size wide; no multiplier to stay conservative
+const CHARS_PER_LINE = Math.floor((SCREEN_WIDTH - 56) / FONT_SIZE);
 const AVAILABLE_HEIGHT = SCREEN_HEIGHT - TOP_BAR_H - BOTTOM_BAR_H - PAGE_PAD_H;
 const LINES_PER_PAGE = Math.floor(AVAILABLE_HEIGHT / LINE_HEIGHT);
 const CHARS_PER_PAGE = Math.max(CHARS_PER_LINE * LINES_PER_PAGE, 200);
