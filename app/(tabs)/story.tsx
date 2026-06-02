@@ -9,11 +9,13 @@ import type { Story } from '../../shared/storyData';
 import { STORY_STORAGE_KEY, buildSampleStories } from '../../shared/storyData';
 import StoryCard from '../../components/StoryCard';
 import StoryEditor from '../../components/StoryEditor';
+import StoryReader from '../../components/StoryReader';
 
 export default function StoryScreen() {
   const [stories, setStories] = useState<Story[]>([]);
   const [inspirations, setInspirations] = useState<InspirationItem[]>([]);
   const [editingStory, setEditingStory] = useState<Story | null>(null);
+  const [readingStory, setReadingStory] = useState<Story | null>(null);
 
   // ── Load data ───────────────────────────────────────────
   useFocusEffect(
@@ -106,6 +108,14 @@ export default function StoryScreen() {
     [stories, persistStories],
   );
 
+  const handleRead = useCallback((story: Story) => {
+    setReadingStory(story);
+  }, []);
+
+  const handleCloseReader = useCallback(() => {
+    setReadingStory(null);
+  }, []);
+
   const handleCloseEditor = useCallback(() => {
     setEditingStory(null);
   }, []);
@@ -118,6 +128,16 @@ export default function StoryScreen() {
         inspirations={inspirations}
         onClose={handleCloseEditor}
         onSave={handleSave}
+      />
+    );
+  }
+
+  // ── Reader mode ──────────────────────────────────────────
+  if (readingStory) {
+    return (
+      <StoryReader
+        story={readingStory}
+        onClose={handleCloseReader}
       />
     );
   }
@@ -147,6 +167,7 @@ export default function StoryScreen() {
               key={story.id}
               story={story}
               onPress={handleOpen}
+              onRead={handleRead}
               onDelete={handleDelete}
             />
           ))

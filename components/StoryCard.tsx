@@ -6,10 +6,11 @@ import { countChars, timeAgo } from '../shared/storyData';
 interface Props {
   story: Story;
   onPress: (story: Story) => void;
+  onRead: (story: Story) => void;
   onDelete: (id: string) => void;
 }
 
-export default function StoryCard({ story, onPress, onDelete }: Props) {
+export default function StoryCard({ story, onPress, onRead, onDelete }: Props) {
   const charCount = countChars(story.content);
   const pinCount = story.pinnedInspirationIds.length;
 
@@ -17,7 +18,9 @@ export default function StoryCard({ story, onPress, onDelete }: Props) {
     <TouchableOpacity style={styles.card} onPress={() => onPress(story)} activeOpacity={0.7}>
       <View style={styles.cardHeader}>
         <Text style={styles.cardTitle} numberOfLines={1}>{story.title || '未命名故事'}</Text>
-        <Text style={styles.cardArrow}>›</Text>
+        <TouchableOpacity onPress={() => onRead(story)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <Text style={styles.cardArrow}>📖</Text>
+        </TouchableOpacity>
       </View>
 
       {story.content ? (
