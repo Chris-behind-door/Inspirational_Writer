@@ -1,8 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import React, { useCallback, useState, useRef, useEffect } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Keyboard,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -30,6 +32,7 @@ interface Props {
 type ToolPanel = 'none' | 'pins' | 'ai' | 'outline';
 
 export default function StoryEditor({ story, inspirations, onClose, onSave }: Props) {
+  const tabBarHeight = useBottomTabBarHeight();
   const [title, setTitle] = useState(story.title);
   const [content, setContent] = useState(story.content);
   const [outline, setOutline] = useState<string[]>(story.outline);
@@ -41,7 +44,29 @@ export default function StoryEditor({ story, inspirations, onClose, onSave }: Pr
   const [newOutlineItem, setNewOutlineItem] = useState('');
   const [selectedInspiration, setSelectedInspiration] = useState<InspirationItem | null>(null);
   const [contentSelection, setContentSelection] = useState<{ start: number; end: number } | undefined>(undefined);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const [androidKeyboardHeight, setAndroidKeyboardHeight] = useState(0);
   const contentRef = useRef<TextInput>(null);
+
+  // ── Keyboard tracking (Android) ────────────────
+  useEffect(() => {
+    const show = Keyboard.addListener('keyboardDidShow', e => {
+      setKeyboardVisible(true);
+      if (Platform.OS === 'android') {
+        setAndroidKeyboardHeight(e.endCoordinates.height);
+      }
+    });
+    const hide = Keyboard.addListener('keyboardDidHide', () => {
+      setKeyboardVisible(false);
+      if (Platform.OS === 'android') {
+        setAndroidKeyboardHeight(0);
+      }
+    });
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
 
   // Auto-save on changes (debounced)
   const saveTimeout = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -434,7 +459,8 @@ export default function StoryEditor({ story, inspirations, onClose, onSave }: Pr
       )}
 
       {/* ── Bottom Toolbar ───────────────────────── */}
-      <View style={s.toolbar}>
+      {!keyboardVisible && (
+        <View style={s.toolbar}>
         <TouchableOpacity
           style={[s.toolBtn, activePanel === 'pins' && s.toolBtnActive]}
           onPress={() => togglePanel('pins')}
@@ -464,7 +490,13 @@ export default function StoryEditor({ story, inspirations, onClose, onSave }: Pr
             大纲{outline.length > 0 ? `(${outline.length})` : ''}
           </Text>
         </TouchableOpacity>
-      </View>
+        </View>
+      )}
+
+      {/* ── Android keyboard padding ─────────────── */}
+      {keyboardVisible && Platform.OS === 'android' && androidKeyboardHeight > 0 && (
+        <View style={{ height: Math.max(0, androidKeyboardHeight - tabBarHeight) }} />
+      )}
 
       {/* ── Inspiration Detail Modal ─────────────── */}
       <Modal
