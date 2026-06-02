@@ -40,6 +40,7 @@ export default function StoryEditor({ story, inspirations, onClose, onSave }: Pr
   const [aiResult, setAiResult] = useState<string | null>(null);
   const [newOutlineItem, setNewOutlineItem] = useState('');
   const [selectedInspiration, setSelectedInspiration] = useState<InspirationItem | null>(null);
+  const [contentSelection, setContentSelection] = useState<{ start: number; end: number } | undefined>(undefined);
   const contentRef = useRef<TextInput>(null);
 
   // Auto-save on changes (debounced)
@@ -93,6 +94,32 @@ export default function StoryEditor({ story, inspirations, onClose, onSave }: Pr
       [next[index], next[target]] = [next[target], next[index]];
       return next;
     });
+  };
+
+  // Jump to a chapter in the content editor
+  const jumpToOutlineItem = (title: string) => {
+    const heading = `## ${title}`;
+    const idx = content.indexOf(heading);
+    if (idx >= 0) {
+      // Found — set cursor after the heading line
+      const afterLine = content.indexOf('\n', idx);
+      const pos = afterLine >= 0 ? afterLine + 1 : idx + heading.length;
+      setContentSelection({ start: pos, end: pos });
+      setActivePanel('none');
+      contentRef.current?.focus();
+    } else {
+      // Not found — append the chapter heading at the end
+      const separator = content.trim() ? '\n\n' : '';
+      const newContent = content.trimEnd() + separator + heading + '\n\n';
+      const pos = newContent.length;
+      setContent(newContent);
+      // Defer selection so the content update applies first
+      setTimeout(() => {
+        setContentSelection({ start: pos, end: pos });
+        setActivePanel('none');
+        contentRef.current?.focus();
+      }, 50);
+    }
   };
 
   // ── AI Assist ───────────────────────────────────────────
@@ -284,7 +311,9 @@ export default function StoryEditor({ story, inspirations, onClose, onSave }: Pr
                   <Text style={[s.outlineArrow, idx === outline.length - 1 && s.outlineArrowDisabled]}>↓</Text>
                 </TouchableOpacity>
               </View>
-              <Text style={s.outlineText}>{item}</Text>
+              <TouchableOpacity style={s.outlineTextTouch} onPress={() => jumpToOutlineItem(item)}>
+                <Text style={s.outlineText}>{item}</Text>
+              </TouchableOpacity>
               <TouchableOpacity onPress={() => removeOutlineItem(idx)}>
                 <Text style={s.outlineDelete}>✕</Text>
               </TouchableOpacity>
@@ -380,6 +409,8 @@ export default function StoryEditor({ story, inspirations, onClose, onSave }: Pr
           style={s.contentInput}
           value={content}
           onChangeText={setContent}
+          onSelectionChange={(e) => setContentSelection(e.nativeEvent.selection)}
+          selection={contentSelection}
           placeholder="开始写你的故事…"
           placeholderTextColor="#D1D1D6"
           multiline
@@ -552,6 +583,7 @@ const s = StyleSheet.create({
   outlineItemLeft: { flexDirection: 'row', marginRight: 6 },
   outlineArrow: { fontSize: 14, color: '#007AFF', paddingHorizontal: 4 },
   outlineArrowDisabled: { color: '#D1D1D6' },
+  outlineTextTouch: { flex: 1 },
   outlineText: { flex: 1, fontSize: 15, color: '#1C1C1E' },
   outlineDelete: { fontSize: 14, color: '#C7C7CC', marginLeft: 8 },
   outlineAddRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8, gap: 8 },

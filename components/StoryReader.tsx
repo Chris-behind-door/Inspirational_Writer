@@ -1,6 +1,7 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import {
   Dimensions,
+  Modal,
   Pressable,
   ScrollView,
   StatusBar,
@@ -10,22 +11,33 @@ import {
   View,
 } from 'react-native';
 import type { Story } from '../shared/storyData';
-import { countChars } from '../shared/storyData';
+import { countChars, parseChapters } from '../shared/storyData';
 
 interface Props {
   story: Story;
   onClose: () => void;
 }
 
-const SCREEN_WIDTH = Dimensions.get('window').width;
-
 export default function StoryReader({ story, onClose }: Props) {
   const [showUI, setShowUI] = useState(true);
   const [progress, setProgress] = useState(0);
+  const [showTOC, setShowTOC] = useState(false);
+  const chapterOffsets = useRef<Record<number, number>>({});
   const scrollRef = useRef<ScrollView>(null);
 
   const charCount = countChars(story.content);
+  const chapters = useMemo(() => parseChapters(story.content), [story.content]);
+  const hasChapters = chapters.some(c => c.title !== null);
+
   const toggleUI = () => setShowUI(prev => !prev);
+
+  const scrollToChapter = (index: number) => {
+    setShowTOC(false);
+    const y = chapterOffsets.current[index];
+    if (y !== undefined) {
+      scrollRef.current?.scrollTo({ y, animated: true });
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -38,7 +50,13 @@ export default function StoryReader({ story, onClose }: Props) {
             <Text style={styles.backText}>← 退出</Text>
           </TouchableOpacity>
           <Text style={styles.bookTitle} numberOfLines={1}>{story.title || '未命名故事'}</Text>
-          <Text style={styles.charInfo}>{charCount} 字</Text>
+          {hasChapters ? (
+            <TouchableOpacity onPress={() => setShowTOC(true)} style={styles.tocBtn}>
+              <Text style={styles.tocBtnText}>目录</Text>
+            </TouchableOpacity>
+          ) : (
+            <Text style={styles.charInfo}>{charCount} 字</Text>
+          )}
         </View>
       )}
 
@@ -59,14 +77,33 @@ export default function StoryReader({ story, onClose }: Props) {
         {/* Title page-style heading */}
         <Text style={styles.titleHeading}>{story.title || '未命名故事'}</Text>
 
-        {/* Tap target wrapper — toggles UI without interfering with scroll */}
         <Pressable onPress={toggleUI}>
-          <Text style={styles.bodyText}>
-            {story.content || '（还没有内容）\n\n返回编辑器开始写作吧。'}
-          </Text>
+          {/* Render chaptered content */}
+          {chapters.length > 0 ? chapters.map((ch, idx) => (
+            <View
+              key={idx}
+              onLayout={(e) => {
+                // Record absolute Y of this chapter within the scroll content
+                chapterOffsets.current[idx] = e.nativeEvent.layout.y;
+              }}
+            >
+              {ch.title && (
+                <Text style={styles.chapterTitle}>{ch.title}</Text>
+              )}
+              {ch.body.trim() ? (
+                <Text style={styles.bodyText}>{ch.body.trim()}</Text>
+              ) : (
+                <Text style={styles.emptyChapter}>（本章暂无内容）</Text>
+              )}
+            </View>
+          )) : (
+            <Text style={styles.bodyText}>
+              {story.content || '（还没有内容）\n\n返回编辑器开始写作吧。'}
+            </Text>
+          )}
         </Pressable>
 
-        {/* End padding + marker */}
+        {/* End marker */}
         <Text style={styles.endMark}>— 全文 {charCount} 字 —</Text>
       </ScrollView>
 
@@ -84,6 +121,32 @@ export default function StoryReader({ story, onClose }: Props) {
           </View>
         </View>
       )}
+
+      {/* ── TOC Modal ───────────────────────── */}
+      <Modal visible={showTOC} transparent animationType="fade" onRequestClose={() => setShowTOC(false)}>
+        <TouchableOpacity
+          style={styles.tocOverlay}
+          activeOpacity={1}
+          onPress={() => setShowTOC(false)}
+        >
+          <View style={styles.tocBox}>
+            <Text style={styles.tocHeading}>目录</Text>
+            <ScrollView style={styles.tocList} keyboardShouldPersistTaps="handled">
+              {chapters.map((ch, idx) =>
+                ch.title ? (
+                  <TouchableOpacity
+                    key={idx}
+                    style={styles.tocItem}
+                    onPress={() => scrollToChapter(idx)}
+                  >
+                    <Text style={styles.tocItemText}>{ch.title}</Text>
+                  </TouchableOpacity>
+                ) : null,
+              )}
+            </ScrollView>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
@@ -118,6 +181,8 @@ const styles = StyleSheet.create({
     marginHorizontal: 8,
   },
   charInfo: { fontSize: 13, color: 'rgba(59,47,30,0.5)' },
+  tocBtn: { paddingVertical: 6, paddingHorizontal: 8 },
+  tocBtnText: { fontSize: 14, color: ACCENT, fontWeight: '600' },
 
   reader: { flex: 1 },
   readerContent: {
@@ -131,11 +196,24 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 32,
   },
+  chapterTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: TEXT_DARK,
+    marginTop: 36,
+    marginBottom: 16,
+  },
   bodyText: {
     fontSize: 18,
     lineHeight: 34,
     color: TEXT_DARK,
     textAlign: 'justify',
+  },
+  emptyChapter: {
+    fontSize: 15,
+    color: 'rgba(59,47,30,0.35)',
+    fontStyle: 'italic',
+    marginBottom: 12,
   },
   endMark: {
     textAlign: 'center',
@@ -178,5 +256,38 @@ const styles = StyleSheet.create({
   hintText: {
     fontSize: 12,
     color: 'rgba(59,47,30,0.4)',
+  },
+
+  // TOC Modal
+  tocOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+  },
+  tocBox: {
+    width: '100%',
+    maxHeight: '60%',
+    backgroundColor: PAGE_BG,
+    borderRadius: 14,
+    padding: 24,
+  },
+  tocHeading: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: TEXT_DARK,
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  tocList: { maxHeight: 300 },
+  tocItem: {
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(139,105,20,0.12)',
+  },
+  tocItemText: {
+    fontSize: 16,
+    color: TEXT_DARK,
   },
 });
