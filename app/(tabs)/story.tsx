@@ -121,6 +121,14 @@ export default function StoryScreen() {
     setEditingStory(null);
   }, []);
 
+  // ── Reader mode: hide tab bar & header ────────
+  useEffect(() => {
+    navigation.setOptions({
+      tabBarStyle: readingStory ? { display: 'none' } : undefined,
+      headerShown: !readingStory,
+    });
+  }, [readingStory, navigation]);
+
   // ── Editor mode ─────────────────────────────────────────
   if (editingStory) {
     return (
@@ -132,14 +140,6 @@ export default function StoryScreen() {
       />
     );
   }
-
-  // ── Reader mode ──────────────────────────────────────────
-  useEffect(() => {
-    navigation.setOptions({
-      tabBarStyle: readingStory ? { display: 'none' } : undefined,
-      headerShown: !readingStory,
-    });
-  }, [readingStory, navigation]);
 
   if (readingStory) {
     return (
