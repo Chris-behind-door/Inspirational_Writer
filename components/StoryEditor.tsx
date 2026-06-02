@@ -499,7 +499,7 @@ const s = StyleSheet.create({
     backgroundColor: '#FFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E5E5EA',
-    maxHeight: 280,
+    maxHeight: 400,
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
