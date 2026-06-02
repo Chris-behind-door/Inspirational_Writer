@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import React, { useCallback, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import type { InspirationItem } from '../../shared/types';
@@ -12,6 +12,7 @@ import StoryEditor from '../../components/StoryEditor';
 import StoryReader from '../../components/StoryReader';
 
 export default function StoryScreen() {
+  const navigation = useNavigation();
   const [stories, setStories] = useState<Story[]>([]);
   const [inspirations, setInspirations] = useState<InspirationItem[]>([]);
   const [editingStory, setEditingStory] = useState<Story | null>(null);
@@ -134,6 +135,8 @@ export default function StoryScreen() {
 
   // ── Reader mode ──────────────────────────────────────────
   if (readingStory) {
+    // Hide tab bar while reading
+    navigation.setOptions({ tabBarStyle: { display: 'none' } });
     return (
       <StoryReader
         story={readingStory}
@@ -141,6 +144,9 @@ export default function StoryScreen() {
       />
     );
   }
+
+  // Restore tab bar
+  navigation.setOptions({ tabBarStyle: undefined });
 
   // ── List mode ───────────────────────────────────────────
   return (
