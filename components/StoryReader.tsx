@@ -115,7 +115,7 @@ const styles = StyleSheet.create({
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingTop: 50,
+    paddingTop: 44,
     paddingHorizontal: 16,
     paddingBottom: 10,
     backgroundColor: PAGE_BG,

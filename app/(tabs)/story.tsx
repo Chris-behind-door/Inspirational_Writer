@@ -137,6 +137,7 @@ export default function StoryScreen() {
   useEffect(() => {
     navigation.setOptions({
       tabBarStyle: readingStory ? { display: 'none' } : undefined,
+      headerShown: !readingStory,
     });
   }, [readingStory, navigation]);
 
