@@ -586,25 +586,19 @@ export default function StoryEditor({ story, inspirations, onClose, onSave }: Pr
       )}
 
       {/* ── Main Content Editor ──────────────────── */}
-      <ScrollView
-        style={s.editorScroll}
-        contentContainerStyle={s.editorContent}
-        keyboardShouldPersistTaps="handled"
-      >
-        <TextInput
-          ref={contentRef}
-          style={s.contentInput}
-          value={content}
-          onChangeText={setContent}
-          onSelectionChange={(e) => setContentSelection(e.nativeEvent.selection)}
-          selection={contentSelection}
-          placeholder="开始写你的故事…"
-          placeholderTextColor="#D1D1D6"
-          multiline
-          textAlignVertical="top"
-          autoFocus={false}
-        />
-      </ScrollView>
+      <TextInput
+        ref={contentRef}
+        style={s.contentInput}
+        value={content}
+        onChangeText={setContent}
+        onSelectionChange={(e) => setContentSelection(e.nativeEvent.selection)}
+        selection={contentSelection}
+        placeholder="开始写你的故事…"
+        placeholderTextColor="#D1D1D6"
+        multiline
+        textAlignVertical="top"
+        autoFocus={false}
+      />
 
       {/* ── AI Result Floating Bar ──────────────── */}
       {aiResult && (
@@ -887,13 +881,13 @@ const s = StyleSheet.create({
   aiTip: { fontSize: 12, color: '#C7C7CC', marginTop: 8 },
 
   // Editor
-  editorScroll: { flex: 1 },
-  editorContent: { paddingHorizontal: 16, paddingVertical: 12 },
   contentInput: {
+    flex: 1,
     fontSize: 17,
     lineHeight: 28,
     color: '#1C1C1E',
-    minHeight: 400,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     textAlignVertical: 'top',
   },
 
