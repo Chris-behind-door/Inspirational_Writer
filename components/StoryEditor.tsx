@@ -255,7 +255,7 @@ export default function StoryEditor({ story, inspirations, onClose, onSave }: Pr
 
       if (isPolish) {
         systemParts.push(
-          '你是一个小说编辑助手。用户会选中一段正文，请你根据用户指令和上下文来润色、改写或扩写选中的文本。保持叙事风格一致。输出只包含修改后的文本，不要加额外说明或标记。',
+          '你是一个小说编辑助手。用户消息中【选中文本】是需要你润色/改写的目标，【前文】和【后文】仅供你参考上下文和风格，不要修改它们。根据用户指令对【选中文本】进行润色，保持叙事风格一致。输出只包含修改后的【选中文本】部分，不要加额外说明或标记。',
         );
       } else {
         systemParts.push(
