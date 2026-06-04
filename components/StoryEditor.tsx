@@ -282,7 +282,7 @@ export default function StoryEditor({ story, inspirations, onClose, onSave }: Pr
             { role: 'system', content: systemParts.join('\n\n') },
             { role: 'user', content: userParts.join('\n\n') },
           ],
-          temperature: isPolish ? 0.7 : Math.max(settings.temperature, 0.8),
+          temperature: settings.temperature,
           top_p: settings.topP,
         }),
       });
@@ -598,6 +598,7 @@ export default function StoryEditor({ story, inspirations, onClose, onSave }: Pr
         multiline
         textAlignVertical="top"
         autoFocus={false}
+        scrollEnabled
       />
 
       {/* ── AI Result Floating Bar ──────────────── */}
