@@ -30,16 +30,21 @@ interface Props {
 }
 
 type ToolPanel = 'none' | 'pins' | 'ai' | 'outline';
+type AiMode = 'write' | 'polish';
 
 export default function StoryEditor({ story, inspirations, onClose, onSave }: Props) {
   const tabBarHeight = useBottomTabBarHeight();
   const [title, setTitle] = useState(story.title);
   const [content, setContent] = useState(story.content);
   const [pinnedIds, setPinnedIds] = useState<string[]>(story.pinnedInspirationIds);
+  const [worldSettings, setWorldSettings] = useState(story.worldSettings || '');
+  const [showWorldSettings, setShowWorldSettings] = useState(false);
   const [activePanel, setActivePanel] = useState<ToolPanel>('none');
   const [aiInstruction, setAiInstruction] = useState('');
   const [aiGenerating, setAiGenerating] = useState(false);
   const [aiResult, setAiResult] = useState<string | null>(null);
+  const [aiMode, setAiMode] = useState<AiMode>('write');
+  const aiPolishRange = useRef<{ start: number; end: number } | null>(null);
   const [newChapterTitle, setNewChapterTitle] = useState('');
   const [selectedInspiration, setSelectedInspiration] = useState<InspirationItem | null>(null);
   const [contentSelection, setContentSelection] = useState<{ start: number; end: number } | undefined>(undefined);
@@ -81,17 +86,25 @@ export default function StoryEditor({ story, inspirations, onClose, onSave }: Pr
         content,
         outline,
         pinnedInspirationIds: pinnedIds,
+        worldSettings: worldSettings || undefined,
         updatedAt: Date.now(),
       });
     }, 800);
     return () => clearTimeout(saveTimeout.current);
-  }, [title, content, pinnedIds]);
+  }, [title, content, pinnedIds, worldSettings]);
 
   const pinnedInspirations = inspirations.filter(i => pinnedIds.includes(i.id));
   const charCount = countChars(content);
   const togglePanel = (panel: ToolPanel) => {
     setActivePanel(prev => (prev === panel ? 'none' : panel));
   };
+
+  // ── Selection helpers ─────────────────────────
+  const hasSelection = !!contentSelection && contentSelection.start !== contentSelection.end;
+  const selectedText = hasSelection
+    ? content.substring(contentSelection!.start, contentSelection!.end)
+    : '';
+  const selectedCharCount = hasSelection ? countChars(selectedText) : 0;
 
   // ── Inspiration Pin Management ──────────────────────────
   const togglePin = (id: string) => {
@@ -162,8 +175,14 @@ export default function StoryEditor({ story, inspirations, onClose, onSave }: Pr
   // ── AI Assist ───────────────────────────────────────────
   const handleAiGenerate = useCallback(async () => {
     const instruction = aiInstruction.trim();
-    if (!instruction) {
+    const isPolish = aiMode === 'polish';
+
+    if (!isPolish && !instruction) {
       Alert.alert('请输入指令', '例如："续写下一段"、"基于灵感扩写开头"');
+      return;
+    }
+    if (isPolish && !hasSelection) {
+      Alert.alert('请先选中正文', '润色模式需要先在正文中选中一段文字。');
       return;
     }
 
@@ -176,39 +195,79 @@ export default function StoryEditor({ story, inspirations, onClose, onSave }: Pr
     setAiGenerating(true);
     setAiResult(null);
 
+    // Store polish range at generation time
+    if (isPolish && contentSelection) {
+      aiPolishRange.current = { start: contentSelection.start, end: contentSelection.end };
+    } else {
+      aiPolishRange.current = null;
+    }
+
     try {
       const settings = getSettings();
       const prefs = getPreferences();
 
-      // Build context: current content + pinned inspirations
+      // Build context
       const contextParts: string[] = [];
-      if (content.trim()) {
-        contextParts.push(`【当前正文】\n${content.slice(-1500)}`);
+
+      if (isPolish) {
+        // Polish mode: send the selected text + surrounding context
+        contextParts.push(`【选中文本】\n${selectedText}`);
+        // Surrounding context for continuity
+        const beforeSelected = content.slice(0, contentSelection!.start).slice(-800);
+        const afterSelected = content.slice(contentSelection!.end).slice(0, 800);
+        if (beforeSelected.trim()) {
+          contextParts.push(`【前文】\n${beforeSelected}`);
+        }
+        if (afterSelected.trim()) {
+          contextParts.push(`【后文】\n${afterSelected}`);
+        }
+      } else {
+        // Write mode: include recent content (expanded from 1500 → 3000)
+        if (content.trim()) {
+          contextParts.push(`【当前正文（最近部分）】\n${content.slice(-3000)}`);
+        }
       }
+
+      // World settings
+      if (worldSettings.trim()) {
+        contextParts.push(`【故事设定】\n${worldSettings}`);
+      }
+
+      // Pinned inspirations
       if (pinnedInspirations.length > 0) {
         const pinText = pinnedInspirations
           .map(p => `- ${p.title}：${p.content}`)
           .join('\n');
         contextParts.push(`【参考灵感】\n${pinText}`);
       }
+
+      // Chapter outline
       if (chapters.some(c => c.title)) {
         const chapterTitles = chapters.filter(c => c.title).map(c => c.title!);
         contextParts.push(`【大纲】\n${chapterTitles.join('\n')}`);
       }
 
+      // System prompt
       const systemParts: string[] = [];
       if (prefs.writingStyle) {
         systemParts.push(`【文风要求】${prefs.writingStyle}`);
       }
-      systemParts.push(
-        '你是一个小说写作助手。根据用户的指令和提供的上下文（正文、灵感、大纲），生成合适的创作内容。输出只包含创作内容本身，不要加额外说明。',
-      );
+
+      if (isPolish) {
+        systemParts.push(
+          '你是一个小说编辑助手。用户会选中一段正文，请你根据用户指令和上下文来润色、改写或扩写选中的文本。保持叙事风格一致。输出只包含修改后的文本，不要加额外说明或标记。',
+        );
+      } else {
+        systemParts.push(
+          '你是一个小说写作助手。根据用户的指令和提供的上下文（正文、灵感、大纲、设定），生成合适的创作内容。保持叙事风格一致。输出只包含创作内容本身，不要加额外说明。',
+        );
+      }
 
       const userParts: string[] = [];
       if (contextParts.length > 0) {
         userParts.push(contextParts.join('\n\n'));
       }
-      userParts.push(`【用户指令】${instruction}`);
+      userParts.push(`【用户指令】${isPolish ? (instruction || '润色这段文字') : instruction}`);
 
       const url = `${preset.baseUrl.replace(/\/+$/, '')}/chat/completions`;
       const res = await fetch(url, {
@@ -223,7 +282,7 @@ export default function StoryEditor({ story, inspirations, onClose, onSave }: Pr
             { role: 'system', content: systemParts.join('\n\n') },
             { role: 'user', content: userParts.join('\n\n') },
           ],
-          temperature: Math.max(settings.temperature, 0.8),
+          temperature: isPolish ? 0.7 : Math.max(settings.temperature, 0.8),
           top_p: settings.topP,
         }),
       });
@@ -243,13 +302,27 @@ export default function StoryEditor({ story, inspirations, onClose, onSave }: Pr
     } finally {
       setAiGenerating(false);
     }
-  }, [aiInstruction, content, chapters, pinnedInspirations]);
+  }, [aiInstruction, aiMode, content, contentSelection, selectedText, chapters, pinnedInspirations, worldSettings]);
 
-  const insertAiResult = () => {
+  const applyAiResult = () => {
     if (!aiResult) return;
-    setContent(prev => (prev ? prev + '\n\n' + aiResult : aiResult));
+
+    if (aiMode === 'polish' && aiPolishRange.current) {
+      // Replace selected text
+      const { start, end } = aiPolishRange.current;
+      const newContent = content.slice(0, start) + aiResult + content.slice(end);
+      setContent(newContent);
+      // Set cursor after replacement
+      const newPos = start + aiResult.length;
+      setContentSelection({ start: newPos, end: newPos });
+    } else {
+      // Append to end
+      setContent(prev => (prev ? prev + '\n\n' + aiResult : aiResult));
+    }
+
     setAiResult(null);
     setAiInstruction('');
+    aiPolishRange.current = null;
     setActivePanel('none');
   };
 
@@ -383,54 +456,132 @@ export default function StoryEditor({ story, inspirations, onClose, onSave }: Pr
             </TouchableOpacity>
           </View>
 
-          {pinnedInspirations.length > 0 && (
-            <Text style={s.aiContextHint}>
-              已附带 {pinnedInspirations.length} 条灵感作为上下文
-            </Text>
-          )}
-          {chapters.some(c => c.title) && (
-            <Text style={s.aiContextHint}>
-              已附带大纲（{chapters.filter(c => c.title).length} 章）作为上下文
-            </Text>
-          )}
-
-          <View style={s.aiInputRow}>
-            <TextInput
-              style={s.aiInput}
-              value={aiInstruction}
-              onChangeText={setAiInstruction}
-              placeholder="输入指令，如：续写下一段、基于灵感扩写开头…"
-              placeholderTextColor="#C7C7CC"
-              multiline
-              maxLength={500}
-              editable={!aiGenerating}
-            />
-            <TouchableOpacity
-              style={[s.aiSendBtn, aiGenerating && s.aiSendBtnDisabled]}
-              onPress={handleAiGenerate}
-              disabled={aiGenerating}
-            >
-              {aiGenerating ? (
-                <ActivityIndicator color="#FFF" size="small" />
-              ) : (
-                <Text style={s.aiSendBtnText}>生成</Text>
+          {!aiResult ? (
+            /* ── Compose mode: input controls ── */
+            <>
+              {/* World Settings */}
+              <TouchableOpacity
+                style={s.wsToggle}
+                onPress={() => setShowWorldSettings(prev => !prev)}
+                activeOpacity={0.6}
+              >
+                <Text style={s.wsToggleText}>
+                  🌍 故事设定 {showWorldSettings ? '▴' : '▾'}
+                  {worldSettings.trim() ? ' (已填写)' : ''}
+                </Text>
+              </TouchableOpacity>
+              {showWorldSettings && (
+                <TextInput
+                  style={s.wsInput}
+                  value={worldSettings}
+                  onChangeText={setWorldSettings}
+                  placeholder="人物设定、世界观、关系、重要伏笔…&#10;AI 写作时会自动参考这些设定"
+                  placeholderTextColor="#C7C7CC"
+                  multiline
+                  maxLength={2000}
+                  textAlignVertical="top"
+                />
               )}
-            </TouchableOpacity>
-          </View>
 
-          {aiResult && (
+              {/* Mode toggle */}
+              <View style={s.aiModeRow}>
+                <TouchableOpacity
+                  style={[s.aiModeBtn, aiMode === 'write' && s.aiModeBtnActive]}
+                  onPress={() => setAiMode('write')}
+                >
+                  <Text style={[s.aiModeBtnText, aiMode === 'write' && s.aiModeBtnTextActive]}>
+                    ✏️ 续写
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[s.aiModeBtn, aiMode === 'polish' && s.aiModeBtnActive]}
+                  onPress={() => setAiMode('polish')}
+                >
+                  <Text style={[s.aiModeBtnText, aiMode === 'polish' && s.aiModeBtnTextActive]}>
+                    ✨ 润色
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Context hints */}
+              {aiMode === 'polish' && hasSelection && (
+                <Text style={s.aiSelectionHint}>
+                  ✅ 已选中正文 {selectedCharCount} 字
+                </Text>
+              )}
+              {aiMode === 'polish' && !hasSelection && (
+                <Text style={s.aiSelectionWarning}>
+                  ⚠️ 请先在正文中选中要润色的文字
+                </Text>
+              )}
+              {aiMode === 'write' && (
+                <>
+                  {pinnedInspirations.length > 0 && (
+                    <Text style={s.aiContextHint}>
+                      已附带 {pinnedInspirations.length} 条灵感作为上下文
+                    </Text>
+                  )}
+                  {chapters.some(c => c.title) && (
+                    <Text style={s.aiContextHint}>
+                      已附带大纲（{chapters.filter(c => c.title).length} 章）作为上下文
+                    </Text>
+                  )}
+                  {worldSettings.trim() && (
+                    <Text style={s.aiContextHint}>
+                      已附带故事设定作为上下文
+                    </Text>
+                  )}
+                </>
+              )}
+
+              <View style={s.aiInputRow}>
+                <TextInput
+                  style={s.aiInput}
+                  value={aiInstruction}
+                  onChangeText={setAiInstruction}
+                  placeholder={
+                    aiMode === 'polish'
+                      ? '润色要求（可选），如：更有氛围感、精简一下…'
+                      : '输入指令，如：续写下一段、基于灵感扩写开头…'
+                  }
+                  placeholderTextColor="#C7C7CC"
+                  multiline
+                  maxLength={500}
+                  editable={!aiGenerating}
+                />
+                <TouchableOpacity
+                  style={[s.aiSendBtn, aiGenerating && s.aiSendBtnDisabled]}
+                  onPress={handleAiGenerate}
+                  disabled={aiGenerating || (aiMode === 'polish' && !hasSelection)}
+                >
+                  {aiGenerating ? (
+                    <ActivityIndicator color="#FFF" size="small" />
+                  ) : (
+                    <Text style={s.aiSendBtnText}>
+                      {aiMode === 'polish' ? '润色' : '生成'}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+
+              {aiGenerating && (
+                <Text style={s.aiTip}>AI 正在生成…</Text>
+              )}
+              {!aiGenerating && (
+                <Text style={s.aiTip}>提示：用 📌 添加灵感便签，AI 会自动参考它们来创作</Text>
+              )}
+            </>
+          ) : (
+            /* ── Review mode: result only, full space ── */
             <View style={s.aiResultBox}>
-              <Text style={s.aiResultLabel}>AI 输出：</Text>
+              <Text style={s.aiResultLabel}>
+                {aiMode === 'polish' ? '✨ AI 润色结果' : '✏️ AI 输出'}
+              </Text>
               <ScrollView style={s.aiResultScroll} nestedScrollEnabled>
                 <Text style={s.aiResultText}>{aiResult}</Text>
               </ScrollView>
-              <View style={s.aiResultActions}>
-                <Text style={s.aiResultTip}>▼ 使用下方按钮插入或放弃</Text>
-              </View>
             </View>
           )}
-
-          <Text style={s.aiTip}>提示：先用 📌 添加灵感便签，AI 会自动参考它们来创作</Text>
         </View>
       )}
 
@@ -458,13 +609,21 @@ export default function StoryEditor({ story, inspirations, onClose, onSave }: Pr
       {/* ── AI Result Floating Bar ──────────────── */}
       {aiResult && (
         <View style={s.aiFloatingBar}>
-          <TouchableOpacity style={s.aiFloatInsertBtn} onPress={insertAiResult}>
-            <Text style={s.aiFloatInsertText}>插入到正文</Text>
+          <TouchableOpacity style={s.aiFloatInsertBtn} onPress={applyAiResult}>
+            <Text style={s.aiFloatInsertText}>
+              {aiMode === 'polish' ? '替换选中文本' : '插入到正文'}
+            </Text>
           </TouchableOpacity>
           <TouchableOpacity
-            onPress={() => { setAiResult(null); setAiInstruction(''); }}
+            style={s.aiRetryBtn}
+            onPress={() => { setAiResult(null); handleAiGenerate(); }}
           >
-            <Text style={s.aiDiscardText}>放弃</Text>
+            <Text style={s.aiRetryBtnText}>重新生成</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => setAiResult(null)}
+          >
+            <Text style={s.aiDiscardText}>返回修改</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -577,6 +736,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
+
   panelHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -645,8 +805,52 @@ const s = StyleSheet.create({
   },
   outlineAddBtnText: { color: '#FFF', fontSize: 14, fontWeight: '600' },
 
-  // AI Assist
-  aiContextHint: { fontSize: 12, color: '#34C759', marginBottom: 6 },
+  // World Settings
+  wsToggle: {
+    paddingVertical: 8,
+    marginBottom: 4,
+  },
+  wsToggleText: { fontSize: 14, color: '#6D6D72' },
+  wsInput: {
+    fontSize: 14,
+    lineHeight: 22,
+    backgroundColor: '#F2F2F7',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    color: '#1C1C1E',
+    minHeight: 80,
+    maxHeight: 120,
+    marginBottom: 8,
+  },
+
+  // AI Mode toggle
+  aiModeRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 8,
+  },
+  aiModeBtn: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: '#F2F2F7',
+    alignItems: 'center',
+  },
+  aiModeBtnActive: {
+    backgroundColor: '#E3F0FF',
+    borderWidth: 1,
+    borderColor: '#007AFF',
+  },
+  aiModeBtnText: { fontSize: 14, color: '#8E8E93' },
+  aiModeBtnTextActive: { color: '#007AFF', fontWeight: '600' },
+
+  // AI context hints
+  aiContextHint: { fontSize: 12, color: '#34C759', marginBottom: 4 },
+  aiSelectionHint: { fontSize: 12, color: '#34C759', marginBottom: 6, fontWeight: '500' },
+  aiSelectionWarning: { fontSize: 12, color: '#FF9500', marginBottom: 6 },
+
+  // AI input
   aiInputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
   aiInput: {
     flex: 1,
@@ -677,17 +881,9 @@ const s = StyleSheet.create({
     borderColor: '#B3D4FC',
   },
   aiResultLabel: { fontSize: 12, color: '#007AFF', fontWeight: '600', marginBottom: 4 },
-  aiResultScroll: { maxHeight: 120 },
+  aiResultScroll: { maxHeight: 280 },
   aiResultText: { fontSize: 15, color: '#1C1C1E', lineHeight: 24 },
-  aiResultActions: { flexDirection: 'row', alignItems: 'center', marginTop: 8, gap: 16 },
-  aiInsertBtn: {
-    backgroundColor: '#007AFF',
-    borderRadius: 6,
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-  },
-  aiInsertBtnText: { color: '#FFF', fontSize: 14, fontWeight: '600' },
-  aiDiscardText: { fontSize: 14, color: '#8E8E93' },
+
   aiTip: { fontSize: 12, color: '#C7C7CC', marginTop: 8 },
 
   // Editor
@@ -722,10 +918,7 @@ const s = StyleSheet.create({
   toolBtnLabel: { fontSize: 11, color: '#8E8E93', marginTop: 2 },
   toolBtnLabelActive: { color: '#007AFF', fontWeight: '600' },
 
-  // AI result tip inside panel
-  aiResultTip: { fontSize: 12, color: '#8E8E93', textAlign: 'center' },
-
-  // AI floating action bar (above toolbar, fixed position)
+  // AI floating action bar
   aiFloatingBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -744,6 +937,14 @@ const s = StyleSheet.create({
     paddingVertical: 12,
   },
   aiFloatInsertText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
+  aiDiscardText: { fontSize: 14, color: '#8E8E93' },
+  aiRetryBtn: {
+    backgroundColor: '#34C759',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  aiRetryBtnText: { color: '#FFF', fontSize: 14, fontWeight: '600' },
 
   // Inspiration detail modal
   modalOverlay: {

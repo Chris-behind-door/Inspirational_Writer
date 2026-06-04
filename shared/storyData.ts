@@ -6,6 +6,7 @@ export interface Story {
   content: string;
   outline: string[];
   pinnedInspirationIds: string[];
+  worldSettings?: string; // 人物设定、世界观、关系等
   createdAt: number;
   updatedAt: number;
 }
