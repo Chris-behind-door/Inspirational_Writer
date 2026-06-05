@@ -21,6 +21,7 @@ import { createId } from '../shared/utils';
 import type { Story } from '../shared/storyData';
 import { countChars, parseChapters } from '../shared/storyData';
 import { getActivePreset, getSettings, getPreferences } from '../configStore';
+import WebViewEditor from './WebViewEditor';
 
 interface Props {
   story: Story;
@@ -50,7 +51,6 @@ export default function StoryEditor({ story, inspirations, onClose, onSave }: Pr
   const [contentSelection, setContentSelection] = useState<{ start: number; end: number } | undefined>(undefined);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [androidKeyboardHeight, setAndroidKeyboardHeight] = useState(0);
-  const contentRef = useRef<TextInput>(null);
 
   // ── Keyboard tracking (Android) ────────────────
   useEffect(() => {
@@ -119,6 +119,8 @@ export default function StoryEditor({ story, inspirations, onClose, onSave }: Pr
   // ── Chapter Management (derived from content ## headings) ──
   const chapters = useMemo(() => parseChapters(content), [content]);
 
+  const webViewRef = useRef<import('./WebViewEditor').WebViewEditorHandle>(null);
+
   const jumpToChapter = (title: string) => {
     const heading = `## ${title}`;
     const idx = content.indexOf(heading);
@@ -127,7 +129,8 @@ export default function StoryEditor({ story, inspirations, onClose, onSave }: Pr
       const pos = afterLine >= 0 ? afterLine + 1 : idx + heading.length;
       setContentSelection({ start: pos, end: pos });
       setActivePanel('none');
-      contentRef.current?.focus();
+      // WebView editor handles selection via imperative handle
+      webViewRef.current?.setSelection?.(pos, pos);
     }
   };
 
@@ -144,7 +147,7 @@ export default function StoryEditor({ story, inspirations, onClose, onSave }: Pr
       const pos = newContent.length;
       setContentSelection({ start: pos, end: pos });
       setActivePanel('none');
-      contentRef.current?.focus();
+      webViewRef.current?.setSelection?.(pos, pos);
     }, 50);
   };
 
@@ -315,6 +318,7 @@ export default function StoryEditor({ story, inspirations, onClose, onSave }: Pr
       // Set cursor after replacement
       const newPos = start + aiResult.length;
       setContentSelection({ start: newPos, end: newPos });
+      webViewRef.current?.setSelection?.(newPos, newPos);
     } else {
       // Append to end
       setContent(prev => (prev ? prev + '\n\n' + aiResult : aiResult));
@@ -585,20 +589,14 @@ export default function StoryEditor({ story, inspirations, onClose, onSave }: Pr
         </View>
       )}
 
-      {/* ── Main Content Editor ──────────────────── */}
-      <TextInput
-        ref={contentRef}
-        style={s.contentInput}
+      {/* ── Main Content Editor (WebView for performance) ──── */}
+      <WebViewEditor
+        ref={webViewRef}
         value={content}
-        onChangeText={setContent}
-        onSelectionChange={(e) => setContentSelection(e.nativeEvent.selection)}
-        selection={contentSelection}
+        onChange={setContent}
+        onSelectionChange={(sel: { start: number; end: number }) => setContentSelection(sel)}
         placeholder="开始写你的故事…"
-        placeholderTextColor="#D1D1D6"
-        multiline
-        textAlignVertical="top"
-        autoFocus={false}
-        scrollEnabled
+        style={s.contentInput}
       />
 
       {/* ── AI Result Floating Bar ──────────────── */}
