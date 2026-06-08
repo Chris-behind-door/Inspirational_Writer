@@ -52,7 +52,12 @@ function RootLayoutNav() {
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <Stack>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-
+        <Stack.Screen name="index" options={{ headerShown: false }} />
+        <Stack.Screen name="api-config" options={{ title: 'API 配置' }} />
+        <Stack.Screen name="api-docs" options={{ title: 'API 说明' }} />
+        <Stack.Screen name="model-settings" options={{ title: '模型设置' }} />
+        <Stack.Screen name="preferences" options={{ title: '偏好设置' }} />
+        <Stack.Screen name="+not-found" options={{ title: '未找到页面' }} />
       </Stack>
     </ThemeProvider>
   );

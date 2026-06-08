@@ -129,7 +129,7 @@ export default function InspireScreen() {
     const active = getActivePreset();
     const preset = getPreset(selectedType);
 
-    if (!active) {
+    if (!active || !active.baseUrl || !active.apiKey || !active.modelName) {
       setCards(buildFallbackCards(selectedType, customPrompt));
       setError('尚未配置 API，已显示本地备用灵感，方便先测试页面和捕捉流程。');
       return;
