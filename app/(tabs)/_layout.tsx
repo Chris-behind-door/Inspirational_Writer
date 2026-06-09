@@ -23,7 +23,7 @@ export default function TabLayout() {
         headerShown: useClientOnlyValue(false, true),
       }}>
       <Tabs.Screen
-        name="inspire"
+        name="index"
         options={{
           title: '灵感捕捉',
           tabBarIcon: ({ color }) => <TabBarIcon name="lightbulb-o" color={color} />,
