@@ -40,3 +40,7 @@ yarn-error.*
 /ios
 /android
 .sisyphus/
+
+# build outputs
+*.apk
+*.aab
