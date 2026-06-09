@@ -122,6 +122,9 @@ export default function InspireScreen() {
   useFocusEffect(
     useCallback(() => {
       loadFolders();
+      // 每次回到首页都重新检查 API 配置状态
+      const active = getActivePreset();
+      setHasConfig(!!(active?.baseUrl && active?.apiKey && active?.modelName));
     }, [loadFolders]),
   );
 
